@@ -100,14 +100,32 @@ const authOptions = {
         return false;
       }
     },
-    async jwt({ token, user }: { token: any; user?: any }) {
-      console.log('NextAuth jwt callback', { token: { ...token }, user });
+    async jwt({ token, user, trigger }: { token: any; user?: any; trigger?: string }) {
+      console.log('NextAuth jwt callback', { token: { ...token }, user, trigger });
       if (user) {
         (token as any).id = (user as any).id;
         (token as any).name = (user as any).name;
         (token as any).email = (user as any).email;
         (token as any).needsProfileCompletion = (user as any).needsProfileCompletion || false;
       }
+
+      // When session.update() is called from client, NextAuth will call jwt with trigger === 'update'
+      // Re-fetch profile completion status from the database so the token reflects latest values
+      if (trigger === 'update' && (token as any)?.id) {
+        try {
+          const supabase = getSupabase();
+          const { data } = await supabase
+            .from('users')
+            .select('password_hash, date_of_birth, gender')
+            .eq('user_id', (token as any).id)
+            .single();
+
+          (token as any).needsProfileCompletion = !(data?.password_hash && data?.date_of_birth && data?.gender);
+        } catch (err) {
+          console.error('Error refreshing profile completion in jwt callback', err);
+        }
+      }
+
       return token;
     },
     async session({ session, token }: { session: any; token: any }) {

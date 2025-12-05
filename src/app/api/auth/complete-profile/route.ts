@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { getSupabase } from '@/lib/supabase'
 import bcrypt from 'bcryptjs'
+import { getSupabase } from '@/lib/supabase'
 import { isRateLimited } from '@/lib/rateLimiter'
 
 const SECRET = process.env.NEXTAUTH_SECRET
@@ -9,13 +9,13 @@ const SECRET = process.env.NEXTAUTH_SECRET
 export async function POST(req: NextRequest) {
   try {
     const ip = (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown').split(',')[0].trim();
-    if (isRateLimited(`update-password:${ip}`, 8, 60_000)) {
+    if (isRateLimited(`complete-profile:${ip}`, 8, 60_000)) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
     const body = await req.json()
-    const { currentPassword, newPassword } = body || {}
+    const { username, password, dateOfBirth, gender, phone } = body || {}
 
-    if (!currentPassword || !newPassword) {
+    if (!username || !password || !dateOfBirth || !gender) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
 
@@ -25,30 +25,30 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabase()
-    const { data: user, error: fetchError } = await supabase
+
+    // Username uniqueness check (exclude current user)
+    const { data: existing } = await supabase
       .from('users')
-      .select('password_hash')
-      .eq('user_id', token.id)
-      .single()
+      .select('user_id')
+      .eq('username', String(username).toLowerCase())
+      .neq('user_id', token.id)
+      .maybeSingle()
 
-    if (fetchError || !user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (existing) {
+      return NextResponse.json({ error: 'Username already taken' }, { status: 409 })
     }
 
-    const stored = (user as any).password_hash
-    if (!stored) {
-      return NextResponse.json({ error: 'Current password incorrect' }, { status: 400 })
-    }
+    const hashed = await bcrypt.hash(String(password), 10)
 
-    const match = await bcrypt.compare(String(currentPassword), String(stored))
-    if (!match) {
-      return NextResponse.json({ error: 'Current password incorrect' }, { status: 400 })
-    }
-
-    const hashed = await bcrypt.hash(String(newPassword), 10)
     const { error: updateError } = await supabase
       .from('users')
-      .update({ password_hash: hashed })
+      .update({
+        username: String(username).toLowerCase(),
+        password_hash: hashed,
+        date_of_birth: dateOfBirth,
+        gender: gender,
+        phone: phone || null,
+      })
       .eq('user_id', token.id)
 
     if (updateError) {
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('update-password error:', err)
+    console.error('complete-profile error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

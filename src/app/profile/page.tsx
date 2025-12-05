@@ -159,35 +159,37 @@ export default function ProfilePage() {
       return;
     }
 
-    // Verify current password
-    const { data: user } = await getSupabase()
-      .from("users")
-      .select("password_hash")
-      .eq("user_id", session?.user?.id)
-      .single();
+    // Use server API to validate current password and update to new password
+    try {
+      const resp = await fetch('/api/auth/update-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setPasswordError(data?.error || 'Failed to update password');
+        setIsChangingPassword(false);
+        return;
+      }
 
-    if (!user || String((user as any).password_hash) !== currentPassword) {
-      setPasswordError("Current password is incorrect");
+      setPasswordSuccess('Password changed successfully!');
+    } catch (err) {
+      console.error('Password update API error:', err);
+      setPasswordError('An error occurred. Please try again.');
       setIsChangingPassword(false);
       return;
     }
-
-    // Update password
-    const { error: updateError } = await getSupabase()
-      .from("users")
-      .update({ password_hash: newPassword })
-      .eq("user_id", session?.user?.id);
-
-    if (updateError) {
-      setPasswordError(updateError.message);
-      setIsChangingPassword(false);
-      return;
-    }
-
-    setPasswordSuccess("Password changed successfully!");
     setCurrentPassword("");
     setNewPassword("");
     setConfirmNewPassword("");
+    // Refresh session so token reflects any profile changes
+    try {
+      await update();
+    } catch (err) {
+      // ignore
+    }
+
     setIsChangingPassword(false);
   };
 

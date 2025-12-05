@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { getSupabase } from "@/lib/supabase";
+// server-side complete-profile endpoint handles hashing and update
 import { Eye, EyeOff } from "lucide-react";
 
 export default function CompleteProfilePage() {
@@ -32,19 +32,11 @@ export default function CompleteProfilePage() {
       setUsername(session.user.name);
     }
 
-    // Check if user already has password_hash set
-    (async () => {
-      const { data: user } = await getSupabase()
-        .from("users")
-        .select("password_hash, date_of_birth, gender")
-        .eq("user_id", session.user.id)
-        .single();
-
-      if (user?.password_hash && user?.date_of_birth && user?.gender) {
-        // Profile already complete, redirect to dashboard
-        router.push("/dashboard");
-      }
-    })();
+    // Check if profile is complete via session flag (middleware sets this)
+    // If needsProfileCompletion is false, user shouldn't be here
+    if (!(session?.user as any)?.needsProfileCompletion) {
+      router.push("/dashboard");
+    }
   }, [session, router]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -83,58 +75,59 @@ export default function CompleteProfilePage() {
       return;
     }
 
-    // Check if username is taken (if changed from original)
-    if (username.toLowerCase() !== session?.user?.name?.toLowerCase()) {
-      const { data: existing } = await getSupabase()
-        .from("users")
-        .select("user_id")
-        .eq("username", username.toLowerCase())
-        .neq("user_id", session?.user?.id)
-        .maybeSingle();
-
-      if (existing) {
-        setError("Username is already taken");
-        setIsLoading(false);
+    // Send profile update to server (server hashes password and validates username)
+    try {
+      const resp = await fetch('/api/auth/complete-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, dateOfBirth, gender, phone }),
+      });
+      const body = await resp.json();
+      if (!resp.ok) {
+        setError(body?.error || 'Failed to update profile');
         return;
       }
-    }
 
-    // Update user profile
-    const { error: updateError } = await getSupabase()
-      .from("users")
-      .update({
-        username: username.toLowerCase(),
-        password_hash: password,
-        date_of_birth: dateOfBirth,
-        gender: gender,
-        phone: phone || null,
-      })
-      .eq("user_id", session?.user?.id);
+      // Try to refresh next-auth session first; fallback to credentials sign-in
+      try {
+        console.log('Attempting session.update() to refresh token...');
+        if (typeof update === "function") {
+          await update();
+          console.log('session.update() completed, redirecting...');
+          // Use window.location for full page navigation to ensure cookies are applied
+          window.location.href = '/dashboard';
+          return;
+        }
+      } catch (err) {
+        console.error('session.update() failed:', err);
+      }
 
-    if (updateError) {
-      console.error("Profile update error:", updateError);
-      setError(updateError.message);
+      // Fallback: sign in with credentials to refresh session
+      try {
+        console.log('Falling back to signIn("credentials") to refresh session');
+        const { signIn } = await import('next-auth/react');
+        const res = await signIn('credentials', {
+          email: session?.user?.email,
+          password,
+          redirect: false,
+        });
+        console.log('signIn result:', res);
+        if ((res as any)?.ok) {
+          window.location.href = '/dashboard';
+          return;
+        }
+      } catch (e) {
+        console.error('signIn fallback failed:', e);
+      }
+
+      // Last resort: navigate to dashboard (middleware may enforce redirect back if incomplete)
+      try {
+        window.location.href = '/dashboard';
+      } catch (e) {
+        console.error('Final redirect failed:', e);
+      }
+    } finally {
       setIsLoading(false);
-      return;
-    }
-
-    console.log("Profile updated successfully, refreshing session...");
-
-    // Force session refresh by signing in again with the updated credentials
-    // This will regenerate the JWT token without needsProfileCompletion flag
-    const { signIn } = await import("next-auth/react");
-    const result = await signIn("credentials", {
-      email: session?.user?.email,
-      password: password,
-      redirect: false,
-    });
-
-    if (result?.ok) {
-      console.log("Session refreshed, redirecting to dashboard...");
-      window.location.href = "/dashboard";
-    } else {
-      console.error("Session refresh failed, redirecting anyway...");
-      window.location.href = "/dashboard";
     }
   };
 
@@ -320,3 +313,4 @@ export default function CompleteProfilePage() {
     </div>
   );
 }
+

@@ -5,7 +5,7 @@ import { signIn, useSession } from "next-auth/react";
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { getSupabase } from "@/lib/supabase";
+// server-side create-user endpoint is used for signup
 
 export default function AuthPage() {
   const router = useRouter();
@@ -76,32 +76,25 @@ export default function AuthPage() {
       return;
     }
 
-    // Check if email already exists
-    const { data: existing } = await getSupabase()
-      .from("users")
-      .select("user_id")
-      .eq("email", email.toLowerCase())
-      .maybeSingle();
-    
-    if (existing) {
-      setError("An account with this email already exists.");
-      setIsLoading(false);
-      return;
-    }
+    // Create user via server endpoint (server will hash password and check uniqueness)
 
-    // Create user with temporary username
+    // Create user via server endpoint (server will hash password)
     const tempUsername = email.split('@')[0].toLowerCase() + '_' + Date.now();
-    const { error: insertError } = await getSupabase()
-      .from("users")
-      .insert({
-        username: tempUsername,
-        email: email.toLowerCase(),
-        password_hash: password,
-        is_active: true,
+    try {
+      const resp = await fetch('/api/auth/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.toLowerCase(), password, username: tempUsername }),
       });
-
-    if (insertError) {
-      setError(insertError.message);
+      const body = await resp.json();
+      if (!resp.ok) {
+        setError(body?.error || 'Failed to create account');
+        setIsLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.error('create-user API error:', err);
+      setError('An error occurred creating account');
       setIsLoading(false);
       return;
     }

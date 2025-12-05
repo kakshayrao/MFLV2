@@ -18,6 +18,7 @@ const navItems = [
 ]
 
 function PasswordUpdateModal({ onClose, userId }: { onClose: () => void; userId?: string }) {
+  const { update } = useSession();
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -68,6 +69,13 @@ function PasswordUpdateModal({ onClose, userId }: { onClose: () => void; userId?
       if (!response.ok) {
         setError(data.error || 'Failed to update password')
         return
+      }
+
+      // Refresh next-auth session so JWT is up-to-date
+      try {
+        await update?.();
+      } catch (err) {
+        // ignore
       }
 
       setSuccess(true)
@@ -216,31 +224,62 @@ export function Navbar() {
       if (!session?.user?.id) return
 
       try {
-        // Step 1: get the user's team_id
-        const { data: account } = await getSupabase()
-          .from('accounts')
-          .select('team_id')
-          .eq('id', session.user.id)
-          .maybeSingle()
+        const supabase = getSupabase()
 
-        const teamId: string | null = (account as any)?.team_id ?? null
-        if (!teamId) {
-          console.log('No team_id for user', session.user.id)
-          return
+        // Try new schema first: leaguemembers -> teams (team_id / team_name)
+        try {
+          const { data: lm } = await supabase
+            .from('leaguemembers')
+            .select('team_id')
+            .eq('user_id', session.user.id)
+            .maybeSingle()
+
+          const teamId: string | null = (lm as any)?.team_id ?? null
+          if (teamId) {
+            const { data: team } = await supabase
+              .from('teams')
+              .select('team_name')
+              .eq('team_id', teamId)
+              .maybeSingle()
+
+            const teamNameFetched: string | null = (team as any)?.team_name ?? null
+            if (teamNameFetched) {
+              setTeamName(teamNameFetched)
+              return
+            }
+          }
+        } catch (err) {
+          // ignore and try legacy path
         }
 
-        // Step 2: lookup team name by id
-        const { data: team } = await getSupabase()
-          .from('teams')
-          .select('name')
-          .eq('id', teamId)
-          .maybeSingle()
+        // Legacy fallback: accounts table (older schema)
+        try {
+          const { data: account } = await supabase
+            .from('accounts')
+            .select('team_id')
+            .eq('id', session.user.id)
+            .maybeSingle()
 
-        const teamNameFetched: string | null = (team as any)?.name ?? null
-        if (teamNameFetched) {
-          setTeamName(teamNameFetched)
-        } else {
-          console.log('Team record not found for id', teamId)
+          const teamIdLegacy: string | null = (account as any)?.team_id ?? null
+          if (!teamIdLegacy) {
+            console.debug('No team_id for user', session.user.id)
+            return
+          }
+
+          const { data: teamLegacy } = await supabase
+            .from('teams')
+            .select('name, team_name')
+            .or(`id.eq.${teamIdLegacy},team_id.eq.${teamIdLegacy}`)
+            .maybeSingle()
+
+          const teamNameFetched: string | null = (teamLegacy as any)?.name ?? (teamLegacy as any)?.team_name ?? null
+          if (teamNameFetched) {
+            setTeamName(teamNameFetched)
+          } else {
+            console.debug('Team record not found for id', teamIdLegacy)
+          }
+        } catch (error) {
+          console.error('Error fetching team name (legacy):', error)
         }
       } catch (error) {
         console.error('Error fetching team name:', error)
