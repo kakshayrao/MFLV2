@@ -1,22 +1,40 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
-  // Read session cookie set by next-auth
-  const hasSession = req.cookies.has('next-auth.session-token') || req.cookies.has('__Secure-next-auth.session-token')
-
+  
   const isAuthRoute = req.nextUrl.pathname.startsWith('/signin') || req.nextUrl.pathname.startsWith('/signup')
-  const isProtected = ['/dashboard', '/team', '/leaderboards', '/rules', '/my-challenges'].some((p) => req.nextUrl.pathname.startsWith(p))
+  const isCompleteProfile = req.nextUrl.pathname.startsWith('/complete-profile')
+  const isProtected = ['/dashboard', '/team', '/leaderboards', '/rules', '/my-challenges', '/governor'].some((p) => req.nextUrl.pathname.startsWith(p))
 
-  if (!hasSession && isProtected) {
-    const url = new URL('/', req.url)
-    return NextResponse.redirect(url)
-  }
+  // Only validate token for protected routes
+  if (isProtected || isCompleteProfile) {
+    try {
+      const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+      
+      if (!token) {
+        const url = new URL('/signin', req.url)
+        return NextResponse.redirect(url)
+      }
 
-  if (hasSession && (req.nextUrl.pathname === '/' || isAuthRoute)) {
-    const url = new URL('/dashboard', req.url)
-    return NextResponse.redirect(url)
+      // Check if profile needs completion
+      if ((token as any).needsProfileCompletion && !isCompleteProfile) {
+        const url = new URL('/complete-profile', req.url)
+        return NextResponse.redirect(url)
+      }
+
+      // If profile is complete and trying to access complete-profile, redirect to dashboard
+      if (!(token as any).needsProfileCompletion && isCompleteProfile) {
+        const url = new URL('/dashboard', req.url)
+        return NextResponse.redirect(url)
+      }
+    } catch (error) {
+      // Invalid token, redirect to signin
+      const url = new URL('/signin', req.url)
+      return NextResponse.redirect(url)
+    }
   }
 
   return res

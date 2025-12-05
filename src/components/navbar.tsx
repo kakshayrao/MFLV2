@@ -13,6 +13,7 @@ const navItems = [
   { href: '/team', label: 'My Team', icon: Users },
   { href: '/leaderboards', label: 'Leaderboard', icon: Trophy },
   { href: '/my-challenges', label: 'My Challenges', icon: Flag },
+  { href: '/profile', label: 'Profile', icon: User },
   { href: '/rules', label: 'Rules', icon: BookOpen },
 ]
 
