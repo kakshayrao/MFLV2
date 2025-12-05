@@ -136,17 +136,26 @@ export default function LeaderboardsPage() {
         if (!playerError) {
           const rp = (p || []) as Array<{ user_id: string; points: number; avg_rr: number | null }>;
           const userIds = rp.map(r => r.user_id);
-          const { data: users } = userIds.length ? await getSupabase()
-            .from('accounts').select('id, first_name, team_id').in('id', userIds) : { data: [] } as { data: Array<{ id: string; first_name: string; team_id: string | null }> };
-          const teamIds = Array.from(new Set((users || []).map((u)=> String(u.team_id)).filter(Boolean)));
+          // Fetch usernames from `users` and membership/team mapping from `leaguemembers`.
+          const usersRes = userIds.length ? await getSupabase().from('users').select('id, username').in('id', userIds) : { data: [] } as { data: Array<{ id: string; username: string }> };
+          const membersRes = userIds.length ? await getSupabase().from('leaguemembers').select('user_id, team_id').in('user_id', userIds) : { data: [] } as { data: Array<{ user_id: string; team_id: string | null }> };
+
+          const users = usersRes.data || [];
+          const members = membersRes.data || [];
+
+          const teamIds = Array.from(new Set(members.map((m: any) => String(m.team_id)).filter(Boolean)));
           const { data: teamsMeta } = teamIds.length ? await getSupabase().from('teams').select('id, name').in('id', teamIds) : { data: [] } as { data: Array<{ id: string; name: string }> };
           const teamNameById = new Map<string,string>();
           (teamsMeta || []).forEach((t)=> teamNameById.set(String(t.id), String(t.name)));
+
           const usersById = new Map((users || []).map((u)=> [String(u.id), u]));
+          const memberByUser = new Map((members || []).map((m: any) => [String(m.user_id), m]));
+
           const playersAll: PlayerRow[] = rp.map(row => {
             const u = usersById.get(String(row.user_id));
-            const teamName = u?.team_id ? (teamNameById.get(String(u.team_id)) || null) : null;
-            return { user_id: String(row.user_id), name: String(u?.first_name || '—'), team: teamName, points: row.points, avg_rr: row.avg_rr } as PlayerRow;
+            const member = memberByUser.get(String(row.user_id));
+            const teamName = member?.team_id ? (teamNameById.get(String(member.team_id)) || null) : null;
+            return { user_id: String(row.user_id), name: String(u?.username || '—'), team: teamName, points: row.points, avg_rr: row.avg_rr } as PlayerRow;
           }).sort((a,b)=> (b.points - a.points) || ((b.avg_rr||0) - (a.avg_rr||0)));
           const from = (page - 1) * pageSize; const to = from + pageSize;
           setPlayersTotal(playersAll.length); setPlayers(playersAll.slice(from, to));
@@ -302,14 +311,17 @@ export default function LeaderboardsPage() {
         const res: Array<Omit<TeamStanding, 'position' | 'delta'>> = [];
         for (const team of teams) {
           const tid = String(team.id);
-          const { data: entries } = await getSupabase()
-            .from('entries')
+          // Fetch league_member_ids for this team, then fetch effort entries filtered by those ids
+          const { data: membersForTeam } = await getSupabase().from('leaguemembers').select('league_member_id').eq('team_id', tid);
+          const memberIds = (membersForTeam || []).map((m: any) => m.league_member_id).filter(Boolean);
+          const { data: entries } = memberIds.length ? await getSupabase()
+            .from('effortentry')
             .select('type, rr_value, date')
-            .eq('team_id', tid)
+            .in('league_member_id', memberIds)
             .eq('status', 'approved')
             .gte('date', ymdLocal(s))
-            .lte('date', ymdLocal(e));
-          const ents = (entries || []) as Array<{ type: string; rr_value: number | null }>;        
+            .lte('date', ymdLocal(e)) : { data: [] } as { data: any[] };
+          const ents = (entries || []) as Array<{ type: string; rr_value: number | null }>;
           let pts = 0; let rrSum = 0; let rrCnt = 0;
           ents.forEach(e2 => {
             const rr = typeof e2.rr_value === 'number' ? e2.rr_value : Number(e2.rr_value || 0);
@@ -366,20 +378,24 @@ export default function LeaderboardsPage() {
         const tid = String(team.id);
 
         // Fetch today's entries
-        const { data: todayEntries } = await getSupabase()
-          .from('entries')
+        // Fetch league_member_ids for this team
+        const { data: membersForTeamRealtime } = await getSupabase().from('leaguemembers').select('league_member_id').eq('team_id', tid);
+        const memberIdsRealtime = (membersForTeamRealtime || []).map((m: any) => m.league_member_id).filter(Boolean);
+
+        const { data: todayEntries } = memberIdsRealtime.length ? await getSupabase()
+          .from('effortentry')
           .select('type, rr_value')
-          .eq('team_id', tid)
+          .in('league_member_id', memberIdsRealtime)
           .eq('status', 'approved')
-          .eq('date', todayDateStr);
+          .eq('date', todayDateStr) : { data: [] } as { data: any[] };
 
         // Fetch yesterday's entries
-        const { data: yesterdayEntries } = await getSupabase()
-          .from('entries')
+        const { data: yesterdayEntries } = memberIdsRealtime.length ? await getSupabase()
+          .from('effortentry')
           .select('type, rr_value')
-          .eq('team_id', tid)
+          .in('league_member_id', memberIdsRealtime)
           .eq('status', 'approved')
-          .eq('date', yesterdayDateStr);
+          .eq('date', yesterdayDateStr) : { data: [] } as { data: any[] };
 
         const todayEnts = todayEntries || [];
         const yesterdayEnts = yesterdayEntries || [];

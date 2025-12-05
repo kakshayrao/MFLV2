@@ -7,16 +7,19 @@ import { Dumbbell, Trophy, Users, BookOpen, User, Menu, X, Key, Eye, EyeOff, Log
 import { signOut, useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
+import { fetchMemberProfile } from '@/lib/membership'
 
 const navItems = [
   { href: '/dashboard', label: 'My Progress', icon: Dumbbell },
   { href: '/team', label: 'My Team', icon: Users },
   { href: '/leaderboards', label: 'Leaderboard', icon: Trophy },
   { href: '/my-challenges', label: 'My Challenges', icon: Flag },
+  { href: '/profile', label: 'Profile', icon: User },
   { href: '/rules', label: 'Rules', icon: BookOpen },
 ]
 
 function PasswordUpdateModal({ onClose, userId }: { onClose: () => void; userId?: string }) {
+  const { update } = useSession();
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -67,6 +70,13 @@ function PasswordUpdateModal({ onClose, userId }: { onClose: () => void; userId?
       if (!response.ok) {
         setError(data.error || 'Failed to update password')
         return
+      }
+
+      // Refresh next-auth session so JWT is up-to-date
+      try {
+        await update?.();
+      } catch (err) {
+        // ignore
       }
 
       setSuccess(true)
@@ -215,31 +225,48 @@ export function Navbar() {
       if (!session?.user?.id) return
 
       try {
-        // Step 1: get the user's team_id
-        const { data: account } = await getSupabase()
-          .from('accounts')
-          .select('team_id')
-          .eq('id', session.user.id)
-          .maybeSingle()
+        const supabase = getSupabase()
 
-        const teamId: string | null = (account as any)?.team_id ?? null
-        if (!teamId) {
-          console.log('No team_id for user', session.user.id)
-          return
+        // Try new schema first: leaguemembers -> teams (team_id / team_name)
+        try {
+          const { data: lm } = await supabase
+            .from('leaguemembers')
+            .select('team_id')
+            .eq('user_id', session.user.id)
+            .maybeSingle()
+
+          const teamId: string | null = (lm as any)?.team_id ?? null
+          if (teamId) {
+            const { data: team } = await supabase
+              .from('teams')
+              .select('team_name')
+              .eq('team_id', teamId)
+              .maybeSingle()
+
+            const teamNameFetched: string | null = (team as any)?.team_name ?? null
+            if (teamNameFetched) {
+              setTeamName(teamNameFetched)
+              return
+            }
+          }
+        } catch (err) {
+          // ignore and try legacy path
         }
 
-        // Step 2: lookup team name by id
-        const { data: team } = await getSupabase()
-          .from('teams')
-          .select('name')
-          .eq('id', teamId)
-          .maybeSingle()
-
-        const teamNameFetched: string | null = (team as any)?.name ?? null
-        if (teamNameFetched) {
-          setTeamName(teamNameFetched)
-        } else {
-          console.log('Team record not found for id', teamId)
+        // Legacy fallback: use membership helper which reads users/leaguemembers
+        try {
+          const membership = await fetchMemberProfile(session.user.id)
+          const teamIdLegacy = membership?.teamId ?? null
+          if (!teamIdLegacy) return
+          const { data: teamLegacy } = await supabase
+            .from('teams')
+            .select('team_name')
+            .eq('team_id', teamIdLegacy)
+            .maybeSingle()
+          const teamNameFetched: string | null = (teamLegacy as any)?.team_name ?? null
+          if (teamNameFetched) setTeamName(teamNameFetched)
+        } catch (error) {
+          console.error('Error fetching team name (membership fallback):', error)
         }
       } catch (error) {
         console.error('Error fetching team name:', error)

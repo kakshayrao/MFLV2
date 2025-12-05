@@ -9,7 +9,7 @@ import { getSupabase } from '@/lib/supabase'
 type TeamRow = { team_id: string; team_name: string; points: number; avg_rr: number | null; rest_days?: number | null }
 type IndividualRow = { user_id: string; first_name?: string; last_name?: string; username?: string | null; team_id?: string | null; team_name?: string | null; points: number; avg_rr: number | null; rest_days?: number | null; missed_days?: number | null }
 type Team = { id: string; name: string }
-type Account = { id: string; first_name: string | null; last_name: string | null; username: string | null; team_id: string | null }
+type LeagueMember = { user_id: string; first_name: string | null; last_name: string | null; username: string | null; team_id: string | null; role: string | null; age: number | null; gender: string | null }
 type LeagueAccount = { id: string; role?: string | null; team_id?: string | null; age?: number | null; gender?: string | null }
 
 // Local-only data model (will be wired to DB later)
@@ -79,7 +79,7 @@ export default function GovernorPage() {
   const [leagueAccounts, setLeagueAccounts] = useState<LeagueAccount[]>([]);
   const [restDaysByUser, setRestDaysByUser] = useState<Record<string, number>>({});
   const [missedDaysByUser, setMissedDaysByUser] = useState<Record<string, number>>({});
-  const [teamMembers, setTeamMembers] = useState<Account[]>([]);
+  const [teamMembers, setTeamMembers] = useState<LeagueMember[]>([]);
   const [analyticsEvents, setAnalyticsEvents] = useState<Array<{ received_at: string } & Record<string, any>>>([]);
   // Tab state for section navigation
   type GovTab = 'teamLeaderboard' | 'challenges' | 'activitySnapshot' | 'leagueSummary' | 'teamSummary' | 'individualLeaderboard';
@@ -372,11 +372,22 @@ export default function GovernorPage() {
         setTeams(teamList);
         if (!selectedTeamId && teamList.length) setSelectedTeamId(String(teamList[0].id));
 
-        // Accounts (players + leaders) to ensure zero-entry users are included
-        const { data: allAccounts } = await getSupabase().from('accounts').select('id, first_name, last_name, username, team_id, role, age, gender');
-        const filteredAccounts = ((allAccounts||[]) as Array<{ id: string; first_name: string|null; last_name: string|null; username: string|null; team_id: string|null; role: string; age?: number|null; gender?: string|null }>)
-          .filter(a => (a.role === 'player' || a.role === 'leader'));
-        setLeagueAccounts(filteredAccounts.map(a=>({ id: String(a.id), role: a.role, team_id: a.team_id ? String(a.team_id) : null, age: (typeof a.age === 'number' ? a.age : null), gender: (a as any).gender ?? null })));
+        // League members (players + leaders) from new schema with joined user names
+        const { data: memberRows } = await getSupabase()
+          .from('leaguemembers')
+          .select('user_id, team_id, role, age, gender, users(first_name,last_name,username)');
+        const mappedMembers: LeagueMember[] = ((memberRows || []) as any[]).map((m) => ({
+          user_id: String(m.user_id),
+          first_name: m.users?.first_name ?? null,
+          last_name: m.users?.last_name ?? null,
+          username: m.users?.username ?? null,
+          team_id: m.team_id ? String(m.team_id) : null,
+          role: m.role ? String(m.role) : null,
+          age: typeof m.age === 'number' ? m.age : null,
+          gender: m.gender ? String(m.gender) : null,
+        }));
+        const filteredMembers = mappedMembers.filter((m) => m.role === 'player' || m.role === 'leader');
+        setLeagueAccounts(filteredMembers.map(m=>({ id: m.user_id, role: m.role, team_id: m.team_id, age: m.age, gender: m.gender })));
 
         // Entries for season-to-date up to asOf (yesterday local)
         // Fetch team-wise and user-wise to avoid 1000-row limit
@@ -385,7 +396,7 @@ export default function GovernorPage() {
         // Fetch entries for each team
         for (const team of teamList) {
           const { data: teamEnts } = await getSupabase()
-            .from('entries')
+            .from('effortentry')
             .select('user_id,team_id,workout_type,duration,distance,steps,type,status,date,rr_value')
             .eq('team_id', team.id)
             .gte('date', SEASON_START)
@@ -396,7 +407,7 @@ export default function GovernorPage() {
         
         // Also fetch entries with null team_id (if any)
         const { data: nullTeamEnts } = await getSupabase()
-          .from('entries')
+          .from('effortentry')
           .select('user_id,team_id,workout_type,duration,distance,steps,type,status,date,rr_value')
           .is('team_id', null)
           .gte('date', SEASON_START)
@@ -464,12 +475,12 @@ export default function GovernorPage() {
         }
         const teamNameById = new Map<string,string>();
         teamList.forEach(t => teamNameById.set(String(t.id), String(t.name)));
-        const indiv: IndividualRow[] = filteredAccounts.map(a => {
-          const agg = userAgg.get(String(a.id)) || { points: 0, rrSum: 0, rrCnt: 0 };
+        const indiv: IndividualRow[] = filteredMembers.map(a => {
+          const agg = userAgg.get(String(a.user_id)) || { points: 0, rrSum: 0, rrCnt: 0 };
           const avg = agg.rrCnt > 0 ? Math.round((agg.rrSum / agg.rrCnt) * 100) / 100 : 0;
           const tName = a.team_id ? (teamNameById.get(String(a.team_id)) || null) : null;
           return {
-            user_id: String(a.id),
+            user_id: String(a.user_id),
             first_name: a.first_name || undefined,
             last_name: a.last_name || undefined,
             username: a.username || null,
@@ -477,8 +488,8 @@ export default function GovernorPage() {
             team_name: tName || undefined,
             points: agg.points,
             avg_rr: avg,
-            rest_days: restMap[String(a.id)] || 0,
-            missed_days: missedMap[String(a.id)] || 0,
+            rest_days: restMap[String(a.user_id)] || 0,
+            missed_days: missedMap[String(a.user_id)] || 0,
           } as IndividualRow;
         });
         setIndividualLeaderboard(indiv);
@@ -554,8 +565,21 @@ export default function GovernorPage() {
   useEffect(() => {
     const loadMembers = async () => {
       if (!selectedTeamId) { setTeamMembers([]); return; }
-      const { data } = await getSupabase().from('accounts').select('id, first_name, last_name, username, team_id').eq('team_id', selectedTeamId);
-      setTeamMembers(((data||[]) as Account[]).sort((a,b)=>{
+      const { data } = await getSupabase()
+        .from('leaguemembers')
+        .select('user_id, team_id, role, users(first_name,last_name,username)')
+        .eq('team_id', selectedTeamId);
+      const mapped = ((data || []) as any[]).map((m) => ({
+        user_id: String(m.user_id),
+        first_name: m.users?.first_name ?? null,
+        last_name: m.users?.last_name ?? null,
+        username: m.users?.username ?? null,
+        team_id: m.team_id ? String(m.team_id) : null,
+        role: m.role ? String(m.role) : null,
+        age: null,
+        gender: null,
+      } as LeagueMember));
+      setTeamMembers(mapped.sort((a,b)=>{
         const an = (a.first_name||'').toLowerCase();
         const bn = (b.first_name||'').toLowerCase();
         return an.localeCompare(bn);
@@ -572,17 +596,17 @@ export default function GovernorPage() {
     (individualLeaderboard || []).forEach(r => lbByUser.set(String(r.user_id), { points: Number(r.points), avg_rr: r.avg_rr }));
     // Build rows for every member of the team
     const rows: IndividualRow[] = (teamMembers || []).map(m => {
-      const lb = lbByUser.get(String(m.id));
+      const lb = lbByUser.get(String(m.user_id));
       return {
-        user_id: String(m.id),
+        user_id: String(m.user_id),
         first_name: m.first_name || '',
         last_name: m.last_name || '',
         username: m.username,
         team_id: m.team_id ? String(m.team_id) : undefined,
         points: lb ? lb.points : 0,
         avg_rr: lb ? lb.avg_rr : null,
-        rest_days: restDaysByUser[String(m.id)] || 0,
-        missed_days: missedDaysByUser[String(m.id)] || 0,
+        rest_days: restDaysByUser[String(m.user_id)] || 0,
+        missed_days: missedDaysByUser[String(m.user_id)] || 0,
       } as IndividualRow;
     });
     return rows.sort((a,b)=> (Number(b.points)-Number(a.points)) || (Number(b.avg_rr||0)-Number(a.avg_rr||0)));

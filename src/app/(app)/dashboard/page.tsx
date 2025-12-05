@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getSupabase, calculateRR } from "@/lib/supabase";
+import { fetchMemberProfile, fetchTeamMembers } from "@/lib/membership";
 import TeamProgressChart from "./TeamProgressChart";
 
 // 11-player teams adjustment factor (normalize to 10-player baseline)
@@ -320,7 +321,7 @@ export default function DashboardPage() {
     const we = new Date(ws);
     we.setUTCDate(ws.getUTCDate() + 6);
     const { data, error } = await getSupabase()
-      .from('entries')
+      .from('effortentry')
       .select('date,type,workout_type,duration,distance,steps,holes,status,rr_value')
       .eq('user_id', userId)
       .gte('date', formatDateYYYYMMDD(ws))
@@ -358,27 +359,23 @@ export default function DashboardPage() {
     fetchActivity(viewWeekStart);
     (async () => {
       if (!userId) return;
-      // Fetch user's team id, age and name
-      const { data: acct } = await getSupabase()
-        .from('accounts')
-        .select('team_id, age, teams(name)')
-        .eq('id', userId)
-        .maybeSingle();
-      type Acct = { team_id: string | null; age: number | null; teams?: { name?: string } | null } | null;
-      const tId = (acct as Acct)?.team_id || null;
-      const tName = (acct as Acct)?.teams?.name || "";
+      // Fetch user's team id, age and name from new membership schema
+      const membership = await fetchMemberProfile(userId);
+      const tId = membership?.teamId || null;
+      const tName = membership?.teamName || "";
       setTeamId(tId);
       setTeamName(tName || "");
-      const ageVal = (acct as Acct)?.age ?? null;
+      const ageVal = membership?.age ?? null;
       setIsSenior(typeof ageVal === 'number' && ageVal >= 65);
 
       // Fetch rest day count
-      const { count } = await getSupabase()
-        .from('entries')
+      const lmIdForCount = membership?.leagueMemberId ?? null;
+      const { count } = lmIdForCount ? await getSupabase()
+        .from('effortentry')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
+        .eq('league_member_id', lmIdForCount)
         .eq('type', 'rest')
-        .eq('status', 'approved');
+        .eq('status', 'approved') : { count: 0 } as any;
       setRestUsed(count || 0);
 
       // Fetch leaderboard to compute team position (overall)
@@ -444,14 +441,16 @@ export default function DashboardPage() {
       const seasonStartStr = SEASON_START_LOCAL_STR;
       const todayLocalStr = formatLocalYYYYMMDD(today);
 
-      // Fetch all my approved entries for the season
-      const { data: myEntries } = await getSupabase()
-        .from('entries')
+      // Fetch all my approved entries for the season using effortentry via league_member_id
+      const member = await fetchMemberProfile(userId);
+      const lmId = member?.leagueMemberId ?? null;
+      const { data: myEntries } = lmId ? await getSupabase()
+        .from('effortentry')
         .select('type, rr_value, date')
-        .eq('user_id', userId)
+        .eq('league_member_id', lmId)
         .eq('status', 'approved')
         .gte('date', seasonStartStr)
-        .lte('date', todayLocalStr);
+        .lte('date', todayLocalStr) : { data: [] } as { data: any[] };
 
       const entries = (myEntries || []) as Array<{ type: string; rr_value: number | null; date: string }>;
 
@@ -483,12 +482,8 @@ export default function DashboardPage() {
     (async () => {
       let effectiveTeamId = teamId;
       if (!effectiveTeamId && userId) {
-        const { data: acct } = await getSupabase()
-          .from('accounts')
-          .select('team_id')
-          .eq('id', userId)
-          .maybeSingle();
-        effectiveTeamId = (acct as any)?.team_id || null;
+        const membership = await fetchMemberProfile(userId);
+        effectiveTeamId = membership?.teamId ?? null;
         if (effectiveTeamId) setTeamId(effectiveTeamId);
       }
       if (!effectiveTeamId) return;
@@ -499,22 +494,24 @@ export default function DashboardPage() {
       const seasonStartStr = SEASON_START_LOCAL_STR;
       const todayLocalStr = formatLocalYYYYMMDD(today);
       
-      // Fetch team members
-      const { data: teamUsers } = await getSupabase()
-        .from('accounts')
-        .select('id')
-        .eq('team_id', effectiveTeamId);
-      const memberIds = ((teamUsers || []) as Array<{ id: string }>).map((u)=> String(u.id));
-      
-      // Fetch all approved entries for the team for the season
-      const { data } = await getSupabase()
-        .from('entries')
-        .select('id, user_id, date, type, rr_value')
-        .eq('team_id', effectiveTeamId)
+      // Fetch team members (user_id + league_member_id)
+      const { data: teamMembers } = await getSupabase().from('leaguemembers').select('user_id, league_member_id').eq('team_id', effectiveTeamId);
+      const memberIds = ((teamMembers || []) as Array<{ user_id: string; league_member_id: string }>).map((u)=> String(u.user_id));
+      const leagueMemberIds = ((teamMembers || []) as Array<{ user_id: string; league_member_id: string }>).map((u)=> String(u.league_member_id)).filter(Boolean);
+
+      // Fetch all approved effort entries for the team for the season by league_member_id
+      const { data } = leagueMemberIds.length ? await getSupabase()
+        .from('effortentry')
+        .select('id,league_member_id,date,type,rr_value')
+        .in('league_member_id', leagueMemberIds)
         .eq('status', 'approved')
         .gte('date', seasonStartStr)
-        .lte('date', todayLocalStr);
-      const entries = (data || []) as Array<{ id: string; user_id: string; date: string; type: string | null; rr_value: number | null }>;
+        .lte('date', todayLocalStr) : { data: [] } as { data: any[] };
+      const entries = (data || []) as Array<{ id: string; league_member_id: string; date: string; type: string | null; rr_value: number | null }>;
+      // Map back to user_id for downstream logic
+      const lmToUser = new Map<string, string>();
+      (teamMembers || []).forEach((m: any) => lmToUser.set(String(m.league_member_id), String(m.user_id)));
+      const entriesWithUser = entries.map(e => ({ ...e, user_id: lmToUser.get(e.league_member_id) || null }));
       const teamPts = entries.length; // every approved entry counts 1
       const rrVals = entries.map(e => (typeof e.rr_value === 'number' ? e.rr_value : Number(e.rr_value || 0))).filter(v => v > 0);
       const teamRR = rrVals.length ? Math.round((rrVals.reduce((a,b)=>a+b,0)/rrVals.length)*100)/100 : null;
@@ -523,7 +520,7 @@ export default function DashboardPage() {
       
       // Team missed days: per member per day with no entry from season start through yesterday
       const memberSet = new Set(memberIds);
-      const byDateUser = new Set(entries.map(e => `${String(e.date)}|${String(e.user_id)}`));
+      const byDateUser = new Set(entriesWithUser.map(e => `${String(e.date)}|${String((e as any).user_id)}`));
       let missed = 0;
       {
         let day = new Date(seasonStart);
@@ -577,7 +574,9 @@ export default function DashboardPage() {
       if (!ok) return;
     }
     if (date === y) {
-      const { data: existingY } = await getSupabase().from('entries').select('id,status').eq('user_id', userId).eq('date', y).maybeSingle();
+      const membership = await fetchMemberProfile(userId);
+      const lmId = membership?.leagueMemberId ?? null;
+      const { data: existingY } = lmId ? await getSupabase().from('effortentry').select('id,status').eq('league_member_id', lmId).eq('date', y).maybeSingle() : { data: null } as any;
       if (!existingY || existingY.status !== 'rejected') { alert('You cannot submit yesterday’s workout unless your submission yesterday was rejected.'); return; }
       const ok = window.confirm("You're about to overwrite your rejected entry from yesterday. Continue?");
       if (!ok) return;
@@ -667,7 +666,9 @@ export default function DashboardPage() {
       }
     }
     if (date === y) {
-      const { data: existingY } = await getSupabase().from('entries').select('id,status').eq('user_id', userId).eq('date', y).maybeSingle();
+      const membership = await fetchMemberProfile(userId);
+      const lmId = membership?.leagueMemberId ?? null;
+      const { data: existingY } = lmId ? await getSupabase().from('effortentry').select('id,status').eq('league_member_id', lmId).eq('date', y).maybeSingle() : { data: null } as any;
       if (!existingY || existingY.status !== 'rejected') { alert('You cannot submit yesterday’s rest day unless your submission yesterday was rejected.'); return; }
       const ok = window.confirm("You're about to overwrite your rejected rest day entry from yesterday. Continue?");
       if (!ok) return;
