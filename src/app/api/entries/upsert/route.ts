@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { auth } from "@/auth";
+import { fetchMemberProfile } from "@/lib/membership";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { date, type, workout_type, duration, distance, steps, holes, team_id } = body;
+  const { date, type, workout_type, duration, distance, steps, holes } = body;
 
-  // Lookup age for senior thresholds
-  const { data: acct } = await getSupabase()
-    .from('accounts')
-    .select('age')
-    .eq('id', session.user.id)
-    .maybeSingle();
-  const userAge = (acct?.age ?? null) as number | null;
+  // Lookup age/team from new membership schema (users + leaguemembers)
+  const membership = await fetchMemberProfile(session.user.id);
+  if (!membership) return NextResponse.json({ error: "Membership not found" }, { status: 404 });
+  const userAge = membership.age;
   let baseDuration = 45;
   let minSteps = 10000, maxSteps = 20000;
   if (typeof userAge === 'number') {
@@ -33,15 +31,14 @@ export async function POST(req: NextRequest) {
 
   // check existing entry
   const { data: existing } = await getSupabase()
-    .from("entries")
+    .from("effortentry")
     .select("id")
-    .eq("user_id", session.user.id)
+    .eq("league_member_id", membership.leagueMemberId)
     .eq("date", date)
     .maybeSingle();
 
   type EntryPayload = {
-    user_id: string;
-    team_id?: string;
+    league_member_id: string;
     date: string;
     type: 'workout' | 'rest';
     workout_type?: string;
@@ -53,8 +50,7 @@ export async function POST(req: NextRequest) {
   };
 
   const payload: EntryPayload = {
-    user_id: session.user.id,
-    team_id,
+    league_member_id: membership.leagueMemberId,
     date,
     type,
     workout_type,
@@ -90,12 +86,12 @@ export async function POST(req: NextRequest) {
   } else payload.rr_value = 1.0;
 
   if (existing) {
-    const { error } = await getSupabase().from("entries").update(payload).eq("id", existing.id);
+    const { error } = await getSupabase().from("effortentry").update(payload).eq("id", existing.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true, updated: true });
   }
 
-  const { error } = await getSupabase().from("entries").insert(payload);
+  const { error } = await getSupabase().from("effortentry").insert(payload);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true, created: true });
 }

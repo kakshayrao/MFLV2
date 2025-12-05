@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import { getSupabase } from "@/lib/supabase";
+import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs';
 // Use bcryptjs to compare hashed passwords
 
@@ -26,17 +27,25 @@ const authOptions = {
       async authorize(credentials) {
         const email = (credentials?.email || "").trim().toLowerCase();
         const password = String(credentials?.password || "");
+        console.log('Credentials authorize called for email:', email ? '[REDACTED]' : '(none)');
         if (!email || !password) return null;
-        const { data: user } = await getSupabase()
-          .from("users")
-          .select("user_id, username, password_hash, email")
-          .eq("email", email)
-          .maybeSingle();
-        if (user && (user as any).password_hash) {
-          const match = await bcrypt.compare(password, String((user as any).password_hash));
-          if (match) {
-            return { id: (user as any).user_id, name: (user as any).username, email: (user as any).email } as any;
+        try {
+          const { data: user, error: uErr } = await getSupabase()
+            .from("users")
+            .select("user_id, username, password_hash, email")
+            .eq("email", email)
+            .maybeSingle();
+          if (uErr) console.error('Credentials authorize - supabase error:', uErr.message || uErr);
+          console.log('Credentials authorize - found user?', !!user);
+          if (user && (user as any).password_hash) {
+            const match = await bcrypt.compare(password, String((user as any).password_hash));
+            console.log('Credentials authorize - bcrypt compare result:', match);
+            if (match) {
+              return { id: (user as any).user_id, name: (user as any).username, email: (user as any).email } as any;
+            }
           }
+        } catch (err) {
+          console.error('Credentials authorize error:', err);
         }
         return null;
       },
@@ -113,14 +122,25 @@ const authOptions = {
       // Re-fetch profile completion status from the database so the token reflects latest values
       if (trigger === 'update' && (token as any)?.id) {
         try {
-          const supabase = getSupabase();
-          const { data } = await supabase
-            .from('users')
-            .select('password_hash, date_of_birth, gender')
-            .eq('user_id', (token as any).id)
-            .single();
-
-          (token as any).needsProfileCompletion = !(data?.password_hash && data?.date_of_birth && data?.gender);
+          // Use server-side Supabase client (service role key) for secure read access
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+          if (!supabaseUrl || !supabaseServiceKey) {
+            console.error('Missing Supabase service role key for jwt update check');
+          } else {
+            const serverClient = createClient(supabaseUrl, supabaseServiceKey);
+            const { data, error: svcErr } = await serverClient
+              .from('users')
+              .select('user_id, username, password_hash, date_of_birth, gender')
+              .eq('user_id', (token as any).id)
+              .single();
+            if (svcErr) {
+              console.error('Service role query error in jwt update check:', svcErr.message || svcErr);
+            }
+            console.log('jwt update check - fetched user row:', data);
+            (token as any).needsProfileCompletion = !(data?.password_hash && data?.date_of_birth && data?.gender);
+            console.log('jwt update check - needsProfileCompletion set to', (token as any).needsProfileCompletion);
+          }
         } catch (err) {
           console.error('Error refreshing profile completion in jwt callback', err);
         }

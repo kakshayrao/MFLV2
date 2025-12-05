@@ -7,6 +7,7 @@ import { Dumbbell, Trophy, Users, BookOpen, User, Menu, X, Key, Eye, EyeOff, Log
 import { signOut, useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
+import { fetchMemberProfile } from '@/lib/membership'
 
 const navItems = [
   { href: '/dashboard', label: 'My Progress', icon: Dumbbell },
@@ -252,34 +253,20 @@ export function Navbar() {
           // ignore and try legacy path
         }
 
-        // Legacy fallback: accounts table (older schema)
+        // Legacy fallback: use membership helper which reads users/leaguemembers
         try {
-          const { data: account } = await supabase
-            .from('accounts')
-            .select('team_id')
-            .eq('id', session.user.id)
-            .maybeSingle()
-
-          const teamIdLegacy: string | null = (account as any)?.team_id ?? null
-          if (!teamIdLegacy) {
-            console.debug('No team_id for user', session.user.id)
-            return
-          }
-
+          const membership = await fetchMemberProfile(session.user.id)
+          const teamIdLegacy = membership?.teamId ?? null
+          if (!teamIdLegacy) return
           const { data: teamLegacy } = await supabase
             .from('teams')
-            .select('name, team_name')
-            .or(`id.eq.${teamIdLegacy},team_id.eq.${teamIdLegacy}`)
+            .select('team_name')
+            .eq('team_id', teamIdLegacy)
             .maybeSingle()
-
-          const teamNameFetched: string | null = (teamLegacy as any)?.name ?? (teamLegacy as any)?.team_name ?? null
-          if (teamNameFetched) {
-            setTeamName(teamNameFetched)
-          } else {
-            console.debug('Team record not found for id', teamIdLegacy)
-          }
+          const teamNameFetched: string | null = (teamLegacy as any)?.team_name ?? null
+          if (teamNameFetched) setTeamName(teamNameFetched)
         } catch (error) {
-          console.error('Error fetching team name (legacy):', error)
+          console.error('Error fetching team name (membership fallback):', error)
         }
       } catch (error) {
         console.error('Error fetching team name:', error)

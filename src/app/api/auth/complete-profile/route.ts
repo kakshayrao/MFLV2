@@ -55,6 +55,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
+    console.log('complete-profile updated user:', token.id);
+    // For debugging: fetch the updated user row using service role key and log presence of password_hash
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+      if (supabaseUrl && supabaseServiceKey) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const serverClient = createClient(supabaseUrl, supabaseServiceKey);
+        const { data: fetchedUser, error: fetchErr } = await serverClient
+          .from('users')
+          .select('user_id, email, username, password_hash, date_of_birth, gender')
+          .eq('user_id', token.id)
+          .single();
+        if (fetchErr) {
+          console.error('complete-profile: service role fetch error:', fetchErr.message || fetchErr);
+        } else {
+          console.log('complete-profile: fetched user after update (password_hash present?):', !!(fetchedUser && fetchedUser.password_hash));
+        }
+      } else {
+        console.warn('complete-profile: missing SUPABASE_SERVICE_ROLE_KEY, cannot verify updated row');
+      }
+    } catch (err) {
+      console.error('complete-profile: error verifying updated user row', err);
+    }
+
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('complete-profile error:', err)
