@@ -8,7 +8,7 @@ export default function Landing() {
         <h1 className="text-4xl font-extrabold text-rfl-navy mb-3">Family Fitness League</h1>
         <p className="text-gray-700 mb-8">Log in to get started.</p>
         <div className="w-full max-w-sm mx-auto">
-          <a href="/signin" className="block w-full px-6 py-3 rounded-md bg-rfl-navy text-white font-medium text-center">Log In</a>
+          <a href="/login" className="block w-full px-6 py-3 rounded-md bg-rfl-navy text-white font-medium text-center">Log In</a>
         </div>
       </div>
     </div>

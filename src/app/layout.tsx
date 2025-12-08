@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/navbar";
-import AppProviders from "@/components/providers";
 import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({
@@ -30,13 +28,8 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <AppProviders>
-          <Navbar />
-          <main className="min-h-screen bg-rfl-black">
-            {children}
-          </main>
-          <Analytics />
-        </AppProviders>
+        {children}
+        <Analytics />
       </body>
     </html>
   );

@@ -5,9 +5,9 @@ import { getToken } from 'next-auth/jwt'
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   
-  const isAuthRoute = req.nextUrl.pathname.startsWith('/signin') || req.nextUrl.pathname.startsWith('/signup')
+  const isAuthRoute = req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/signup')
   const isCompleteProfile = req.nextUrl.pathname.startsWith('/complete-profile')
-  const isProtected = ['/dashboard', '/team', '/leaderboards', '/rules', '/my-challenges', '/governor'].some((p) => req.nextUrl.pathname.startsWith(p))
+  const isProtected = ['/dashboard', '/team', '/leaderboards', '/rules', '/my-challenges', '/governor', '/profile'].some((p) => req.nextUrl.pathname.startsWith(p))
 
   // Only validate token for protected routes
   if (isProtected || isCompleteProfile) {
@@ -15,7 +15,7 @@ export async function middleware(req: NextRequest) {
       const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
       
       if (!token) {
-        const url = new URL('/signin', req.url)
+        const url = new URL('/login', req.url)
         return NextResponse.redirect(url)
       }
 
@@ -31,8 +31,8 @@ export async function middleware(req: NextRequest) {
         return NextResponse.redirect(url)
       }
     } catch (error) {
-      // Invalid token, redirect to signin
-      const url = new URL('/signin', req.url)
+      // Invalid token, redirect to login
+      const url = new URL('/login', req.url)
       return NextResponse.redirect(url)
     }
   }

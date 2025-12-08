@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { getSupabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase/client'
 import bcrypt from 'bcryptjs'
 import { isRateLimited } from '@/lib/rateLimiter'
 

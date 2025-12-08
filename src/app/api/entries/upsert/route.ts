@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase";
-import { auth } from "@/auth";
+import { getSupabase } from "@/lib/supabase/client";
+import { auth } from "@/lib/auth/config";
 import { fetchMemberProfile } from "@/lib/membership";
 
 export async function POST(req: NextRequest) {
