@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { getSupabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase/client'
 import { isRateLimited } from '@/lib/rateLimiter'
 
 export async function POST(req: NextRequest) {

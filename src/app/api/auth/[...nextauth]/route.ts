@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase/client";
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs';
 // Use bcryptjs to compare hashed passwords

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import bcrypt from 'bcryptjs'
-import { getSupabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase/client'
 import { isRateLimited } from '@/lib/rateLimiter'
 
 const SECRET = process.env.NEXTAUTH_SECRET
