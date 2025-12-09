@@ -72,9 +72,13 @@ function PasswordUpdateModal({ onClose, userId }: { onClose: () => void; userId?
         return
       }
 
-      // Refresh next-auth session so JWT is up-to-date
+      // Refresh next-auth session by asking server for profile completion
       try {
-        await update?.();
+        const r = await fetch('/api/auth/refresh-profile', { method: 'POST' });
+        if (r.ok) {
+          const j = await r.json();
+          await update?.({ needsProfileCompletion: !!j?.needsProfileCompletion });
+        }
       } catch (err) {
         // ignore
       }

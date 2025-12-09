@@ -122,17 +122,10 @@ const authConfig = {
         token.needsProfileCompletion = user.needsProfileCompletion || false;
       }
       
-      // Re-fetch profile completion status on update
-      if (trigger === "update" && token.id) {
-        const { getSupabase } = await import("@/lib/supabase/client");
-        const { data } = await getSupabase()
-          .from("users")
-          .select("password_hash, date_of_birth, gender")
-          .eq("user_id", token.id)
-          .single();
-        
-        token.needsProfileCompletion = !(data?.password_hash && data?.date_of_birth && data?.gender);
-      }
+      // For production, avoid DB reads inside jwt callback. Profile completion
+      // should be refreshed by the client after a profile change via a
+      // dedicated endpoint which returns the updated flag and then calling
+      // `session.update({ needsProfileCompletion })` on the client.
       
       return token;
     },

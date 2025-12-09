@@ -121,8 +121,20 @@ export default function ProfilePage() {
       return;
     }
 
-    // Update session
-    await update();
+    // Refresh profile completion flag via dedicated endpoint and update session
+    try {
+      const resp = await fetch('/api/auth/refresh-profile', { method: 'POST' });
+      if (resp.ok) {
+        const json = await resp.json();
+        await update?.({ needsProfileCompletion: !!json?.needsProfileCompletion });
+      } else {
+        // fallback to calling update without payload
+        await update?.();
+      }
+    } catch (err) {
+      // ignore and fallback
+      try { await update?.(); } catch (e) {}
+    }
 
     setSuccess("Profile updated successfully!");
     setIsLoading(false);
@@ -183,9 +195,13 @@ export default function ProfilePage() {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmNewPassword("");
-    // Refresh session so token reflects any profile changes
+    // Refresh session: ask server for latest profile completion and update token
     try {
-      await update();
+      const resp = await fetch('/api/auth/refresh-profile', { method: 'POST' });
+      if (resp.ok) {
+        const json = await resp.json();
+        await update?.({ needsProfileCompletion: !!json?.needsProfileCompletion });
+      }
     } catch (err) {
       // ignore
     }

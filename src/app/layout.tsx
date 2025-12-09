@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
+import AuthProvider from "@/components/auth/auth-provider";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth/config";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -16,11 +19,12 @@ export const metadata: Metadata = {
   description: "Dashboard for Family Fitness League team management and workout tracking",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = (await getServerSession(authOptions as any)) as import('next-auth').Session | null;
   return (
     <html lang="en">
       <head>
@@ -31,7 +35,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
-        {children}
+        <AuthProvider session={session}>{children}</AuthProvider>
         <Analytics />
       </body>
     </html>
