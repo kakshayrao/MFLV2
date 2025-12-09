@@ -1,3 +1,45 @@
+// Simple in-memory rate limiter (Map-based). NOTE: this does NOT persist across server
+// instances and is intended as a lightweight local/server-single-instance fallback.
+// For production multi-instance deployments, use a centralized store (Redis/Upstash).
+
+type Entry = { count: number; expiresAt: number };
+const store = new Map<string, Entry>();
+
+function now() {
+  return Date.now();
+}
+
+export async function checkRateLimit(key: string, limit: number, windowSec: number) {
+  const ttlMs = windowSec * 1000;
+  const rec = store.get(key);
+  const current = now();
+  if (!rec || rec.expiresAt <= current) {
+    store.set(key, { count: 1, expiresAt: current + ttlMs });
+    return { allowed: 1 <= limit, remaining: Math.max(0, limit - 1), reset: windowSec };
+  }
+
+  rec.count += 1;
+  store.set(key, rec);
+  const allowed = rec.count <= limit;
+  const reset = Math.max(0, Math.ceil((rec.expiresAt - current) / 1000));
+  return { allowed, remaining: Math.max(0, limit - rec.count), reset };
+}
+
+export async function rateLimitEmailAndIP(email: string, ip: string) {
+  // per-email: 5 per hour, per-IP: 50 per hour
+  const emailKey = `rl:email:${email}:1h`;
+  const ipKey = `rl:ip:${ip}:1h`;
+  const [emailRes, ipRes] = await Promise.all([
+    checkRateLimit(emailKey, 5, 60 * 60),
+    checkRateLimit(ipKey, 50, 60 * 60),
+  ]);
+  return { emailRes, ipRes };
+}
+
+// Expose store for testing/debugging hooks if needed
+export const _rateStore = store;
+
+export default null;
 type Bucket = {
   tokens: number;
   last: number;

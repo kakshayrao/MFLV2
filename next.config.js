@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    // Skip ESLint in `next build` (CI) – dev still shows errors
-    ignoreDuringBuilds: true,
-  },
+  // Note: `eslint` option removed for Next 16+. Run lint with `npm run lint`.
 };
 
 module.exports = nextConfig;
