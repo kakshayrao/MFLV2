@@ -186,8 +186,8 @@ export function Navbar({ navLinks }: { navLinks?: typeof navItems }) {
                 <img src="/img/PFL_Logo.jpeg" alt="PFL Logo" className="w-full h-full object-cover" />
               </div>
               <div className="whitespace-nowrap leading-tight">
-                <h1 className="text-lg font-bold whitespace-nowrap">FFL</h1>
-                <p className="text-xs text-gray-300 whitespace-nowrap">Family Fitness League</p>
+                <h1 className="text-lg font-bold whitespace-nowrap">MFL</h1>
+                <p className="text-xs text-gray-300 whitespace-nowrap">My Fitness League</p>
               </div>
             </Link>
           </div>
