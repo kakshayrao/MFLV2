@@ -43,12 +43,13 @@ export default function LeagueDetailsPage() {
               Members/Participants
             </label>
             <input
-              type="number"
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="w-full border-2 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none bg-white"
               placeholder="e.g., 50"
               value={numMembers}
-              onChange={e => setNumMembers(e.target.value)}
-              min={1}
+              onChange={e => setNumMembers(e.target.value.replace(/[^0-9]/g, ''))}
               required
             />
           </div>
@@ -58,12 +59,13 @@ export default function LeagueDetailsPage() {
               Number of Teams
             </label>
             <input
-              type="number"
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all outline-none"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="w-full border-2 border-gray-400 rounded-xl px-4 py-3 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all outline-none bg-white"
               placeholder="e.g., 5"
               value={numTeams}
-              onChange={e => setNumTeams(e.target.value)}
-              min={1}
+              onChange={e => setNumTeams(e.target.value.replace(/[^0-9]/g, ''))}
               required
             />
           </div>
@@ -73,12 +75,13 @@ export default function LeagueDetailsPage() {
               Rest Days
             </label>
             <input
-              type="number"
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all outline-none"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="w-full border-2 border-gray-400 rounded-xl px-4 py-3 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all outline-none bg-white"
               placeholder="e.g., 2"
               value={numRestDays}
-              onChange={e => setNumRestDays(e.target.value)}
-              min={0}
+              onChange={e => setNumRestDays(e.target.value.replace(/[^0-9]/g, ''))}
               required
             />
           </div>
@@ -88,12 +91,13 @@ export default function LeagueDetailsPage() {
               Special Challenges
             </label>
             <input
-              type="number"
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all outline-none"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="w-full border-2 border-gray-400 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all outline-none bg-white"
               placeholder="e.g., 3"
               value={numSpecialChallenges}
-              onChange={e => setNumSpecialChallenges(e.target.value)}
-              min={0}
+              onChange={e => setNumSpecialChallenges(e.target.value.replace(/[^0-9]/g, ''))}
               required
             />
           </div>
