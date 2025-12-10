@@ -4,6 +4,8 @@ import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { Navbar } from '@/components/layout/navbar'
+import { User } from 'lucide-react'
 import { fetchUserLeagues, type LeagueInfo } from '@/lib/membership'
 import { Trophy, Users, Plus, ExternalLink, Loader2 } from 'lucide-react'
 
@@ -76,22 +78,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Simple Navbar with FFL Logo and Text */}
-      <nav className="bg-rfl-navy text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-lg overflow-hidden bg-white">
-                <img src="/img/PFL_Logo.jpeg" alt="FFL Logo" className="w-full h-full object-cover" />
-              </div>
-              <div className="whitespace-nowrap leading-tight">
-                <h1 className="text-lg font-bold whitespace-nowrap">FFL</h1>
-                <p className="text-xs text-gray-300 whitespace-nowrap">Family Fitness League</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar navLinks={[{ href: '/profile', label: 'Profile', icon: User }]} />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">

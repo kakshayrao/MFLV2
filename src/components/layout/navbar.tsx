@@ -18,7 +18,7 @@ const navItems = [
   { href: '/rules', label: 'Rules', icon: BookOpen },
 ]
 
-export function Navbar() {
+export function Navbar({ navLinks }: { navLinks?: typeof navItems }) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const name = session?.user?.name ?? null
@@ -174,6 +174,7 @@ export function Navbar() {
     )
   }
 
+  const linksToShow = navLinks ?? navItems;
   return (
     <nav className="bg-rfl-navy text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -193,7 +194,7 @@ export function Navbar() {
 
           {/* Navigation Links (desktop) */}
           <div className="hidden md:flex items-center justify-center flex-1 space-x-6 ml-6 mr-6">
-            {navItems.map((item) => {
+            {linksToShow.map((item) => {
               const Icon = item.icon
               const isActive = item.href === '/dashboard'
                 ? (pathname === '/dashboard' || pathname === '/')
