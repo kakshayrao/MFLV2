@@ -236,10 +236,10 @@ export function Navbar({ navLinks }: { navLinks?: typeof navItems }) {
             {/* Desktop-only auth actions */}
             <div className="hidden md:flex items-center space-x-3">
               {name ? (
-                <Button onClick={() => signOut({ callbackUrl: '/' })} variant="outline" size="sm" className="text-rfl-navy border-white hover:bg-white hover:text-rfl-navy flex items-center">
-                  <LogOut className="w-4 h-4 mr-1" />
-                  Sign Out
-                </Button>
+                  <Button onClick={() => signOut({ callbackUrl: '/' })} variant="outline" size="sm" className="text-rfl-navy border-white hover:bg-white hover:text-rfl-navy flex items-center">
+                    <LogOut className="w-4 h-4 mr-1" />
+                    Sign Out
+                  </Button>
               ) : null}
             </div>
             {/* Hamburger toggle (mobile only) */}
@@ -304,13 +304,13 @@ export function Navbar({ navLinks }: { navLinks?: typeof navItems }) {
             </div>
             <div className="mt-auto px-4 py-3 border-t border-white/10 space-y-2">
               {name ? (
-                <button
-                  className="w-full text-left px-3 py-2 rounded-md bg-white text-rfl-navy font-medium flex items-center gap-2"
-                  onClick={() => { setMobileOpen(false); signOut({ callbackUrl: '/' }) }}
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign Out
-                </button>
+                  <button
+                    className="w-full text-left px-3 py-2 rounded-md bg-white text-rfl-navy font-medium flex items-center gap-2"
+                    onClick={() => { setMobileOpen(false); signOut({ callbackUrl: '/' }) }}
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </button>
               ) : null}
             </div>
           </div>
