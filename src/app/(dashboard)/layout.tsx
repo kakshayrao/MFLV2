@@ -9,11 +9,18 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isMainDashboard = pathname === '/main-dashboard';
+  
+  // Pages that should NOT show the full navbar (they have their own simple header or no navbar)
+  const hideNavbar = 
+    pathname === '/main-dashboard' ||
+    pathname.startsWith('/leagues/create') ||
+    pathname.startsWith('/leagues/payment') ||
+    pathname.includes('/edit') ||
+    pathname === '/leagues';
   
   return (
     <>
-      {!isMainDashboard && <Navbar />}
+      {!hideNavbar && <Navbar />}
       <main className="min-h-screen bg-rfl-black">
         {children}
       </main>
