@@ -88,13 +88,13 @@ function Hero({ userName, stats, loading }: { userName: string | null | undefine
           </h1>
           
           <div className="grid grid-cols-1 gap-4 sm:gap-6 mt-6">
-            <div className="text-center">
+            <div className="text-center bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100">
               {loading ? (
-                <div className="h-8 w-16 mx-auto rounded animate-pulse" style={{ background: '#E6E9EE' }} />
+                <div className="h-8 w-16 mx-auto rounded animate-pulse bg-blue-200" />
               ) : (
-                <div className="text-2xl sm:text-3xl font-extrabold" style={{ color: '#0B365F' }}>{stats?.totalLeagues || 0}</div>
+                <div className="text-4xl font-extrabold text-blue-600">{stats?.totalLeagues || 0}</div>
               )}
-              <div className="text-xs sm:text-sm" style={{ color: '#6B7280' }}>Total Leagues</div>
+              <div className="text-sm text-blue-700 font-medium mt-1">Total Leagues</div>
             </div>
           </div>
         </div>
@@ -105,8 +105,8 @@ function Hero({ userName, stats, loading }: { userName: string | null | undefine
               <Users className="w-5 h-5 mr-2" /> Join a League
             </Button>
           </Link>
-          <Link href="/leagues/create" className="flex-1">
-            <Button variant="outline" className="btn-outline w-full" size="lg">
+          <Link href="/leagues/create" className="flex-1 group">
+            <Button variant="outline" className="btn-outline w-full group-hover:bg-gradient-to-r group-hover:from-indigo-600 group-hover:via-purple-600 group-hover:to-pink-600 group-hover:text-white group-hover:border-transparent transition-all duration-300" size="lg">
               <Plus className="w-5 h-5 mr-2" /> Start a League
             </Button>
           </Link>
@@ -118,17 +118,17 @@ function Hero({ userName, stats, loading }: { userName: string | null | undefine
 
 function StatCard({ icon: Icon, label, value, loading }: { icon: React.ElementType; label: string; value: string | number; loading: boolean }) {
   return (
-    <div className="card p-6 hover:shadow-lg transition-all" style={{ '--tw-shadow-colored': 'var(--shadow-md)' } as React.CSSProperties}>
+    <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-blue-200 transition-all shadow-sm">
       <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'var(--color-accent)', opacity: 0.1 }}>
-          <Icon className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-100 to-indigo-100">
+          <Icon className="w-6 h-6 text-blue-600" />
         </div>
         <div>
-          <div className="text-sm subtle">{label}</div>
+          <div className="text-sm text-gray-600 font-medium">{label}</div>
           {loading ? (
-            <div className="h-7 w-20 mt-1 rounded animate-pulse" style={{ background: 'var(--color-border)' }} />
+            <div className="h-7 w-20 mt-1 rounded animate-pulse bg-gray-200" />
           ) : (
-            <div className="text-2xl font-bold headline mt-1">{value}</div>
+            <div className="text-2xl font-bold text-gray-900 mt-1">{value}</div>
           )}
         </div>
       </div>
@@ -138,12 +138,12 @@ function StatCard({ icon: Icon, label, value, loading }: { icon: React.ElementTy
 
 function LeagueSkeleton() {
   return (
-    <div className="card overflow-hidden animate-pulse">
-      <div className="h-36" style={{ background: 'var(--color-border)' }} />
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden animate-pulse shadow-sm">
+      <div className="h-36 bg-gradient-to-br from-gray-200 to-gray-300" />
       <div className="p-4 space-y-3">
-        <div className="h-4 rounded" style={{ background: 'var(--color-border)', width: '75%' }} />
-        <div className="h-3 rounded" style={{ background: 'var(--color-border)', width: '90%' }} />
-        <div className="h-9 rounded mt-4" style={{ background: 'var(--color-border)' }} />
+        <div className="h-4 rounded bg-gray-200" style={{ width: '75%' }} />
+        <div className="h-3 rounded bg-gray-200" style={{ width: '90%' }} />
+        <div className="h-9 rounded mt-4 bg-gray-200" />
       </div>
     </div>
   )
@@ -204,8 +204,8 @@ function EmptyLeagues() {
             <Users className="w-5 h-5 mr-2" /> Join a League
           </Button>
         </Link>
-        <Link href="/leagues/create">
-          <Button variant="outline" className="btn-outline" size="lg">
+        <Link href="/leagues/create" className="group">
+          <Button variant="outline" className="btn-outline group-hover:bg-gradient-to-r group-hover:from-indigo-600 group-hover:via-purple-600 group-hover:to-pink-600 group-hover:text-white group-hover:border-transparent transition-all duration-300" size="lg">
             <Plus className="w-5 h-5 mr-2" /> Create League
           </Button>
         </Link>
