@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dumbbell, Trophy, Users, BookOpen, User, Menu, X, LogOut, Flag } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
-import { getSupabase } from '@/lib/supabase/client'
-import { fetchMemberProfile } from '@/lib/membership'
+import { getTeamNameForUser } from '@/lib/services/teams'
 
 const navItems = [
   { href: '/dashboard', label: 'My Progress', icon: Dumbbell },
@@ -26,54 +25,15 @@ export function Navbar({ navLinks }: { navLinks?: typeof navItems }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [teamName, setTeamName] = useState<string | null>(null)
 
-  // Fetch team name for logo (two-step fetch for reliability)
+  // Fetch team name (single optimized query)
   useEffect(() => {
     const fetchTeamName = async () => {
       if (!session?.user?.id) return
 
       try {
-        const supabase = getSupabase()
-
-        // Try new schema first: leaguemembers -> teams (team_id / team_name)
-        try {
-          const { data: lm } = await supabase
-            .from('leaguemembers')
-            .select('team_id')
-            .eq('user_id', session.user.id)
-            .maybeSingle()
-
-          const teamId: string | null = (lm as any)?.team_id ?? null
-          if (teamId) {
-            const { data: team } = await supabase
-              .from('teams')
-              .select('team_name')
-              .eq('team_id', teamId)
-              .maybeSingle()
-
-            const teamNameFetched: string | null = (team as any)?.team_name ?? null
-            if (teamNameFetched) {
-              setTeamName(teamNameFetched)
-              return
-            }
-          }
-        } catch (err) {
-          // ignore and try legacy path
-        }
-
-        // Legacy fallback: use membership helper which reads users/leaguemembers
-        try {
-          const membership = await fetchMemberProfile(session.user.id)
-          const teamIdLegacy = membership?.teamId ?? null
-          if (!teamIdLegacy) return
-          const { data: teamLegacy } = await supabase
-            .from('teams')
-            .select('team_name')
-            .eq('team_id', teamIdLegacy)
-            .maybeSingle()
-          const teamNameFetched: string | null = (teamLegacy as any)?.team_name ?? null
-          if (teamNameFetched) setTeamName(teamNameFetched)
-        } catch (error) {
-          console.error('Error fetching team name (membership fallback):', error)
+        const teamName = await getTeamNameForUser(session.user.id)
+        if (teamName) {
+          setTeamName(teamName)
         }
       } catch (error) {
         console.error('Error fetching team name:', error)

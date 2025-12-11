@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase/client";
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth/config';
-import { fetchMemberProfile } from "@/lib/membership";
+import { fetchMemberProfile } from "@/lib/services/memberships";
 
 export async function POST(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as import('next-auth').Session | null;

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import { getUserByEmail, createUser as createUserService } from '@/lib/services/users';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
@@ -51,48 +52,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, verified: true });
     }
 
-    // Find or create user
-    const { data: userRows, error: userErr } = await supabaseAdmin.from('users').select('*').eq('email', email).limit(1);
-    if (userErr) {
-      console.error('user lookup error', userErr);
-      return NextResponse.json({ error: 'Server error' }, { status: 500 });
-    }
+    // Find or create user using service layer
+    const existingUser = await getUserByEmail(email);
 
-    let user = userRows && userRows[0];
-    if (!user) {
-      // create user; password and profile fields required when creating
-      if (!password) {
-        return NextResponse.json({ error: 'Password is required to create account' }, { status: 400 });
-      }
-      if (!username) {
-        return NextResponse.json({ error: 'Username is required to create account' }, { status: 400 });
-      }
-      if (!dateOfBirth) {
-        return NextResponse.json({ error: 'Date of birth is required to create account' }, { status: 400 });
-      }
-      if (!gender) {
-        return NextResponse.json({ error: 'Gender is required to create account' }, { status: 400 });
-      }
-      
-      const password_hash = await bcrypt.hash(password, 10);
-
-      const { data: created, error: createErr } = await supabaseAdmin.from('users').insert([{ 
-        email, 
-        password_hash,
-        username,
-        phone,
-        date_of_birth: dateOfBirth,
-        gender,
-        is_active: true
-      }]).select('*').single();
-      if (createErr) {
-        console.error('user create error', createErr);
-        return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
-      }
-      user = created;
-    } else {
+    if (existingUser) {
       // User already exists
       return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
+    }
+
+    // Create user; password and profile fields required when creating
+    if (!password) {
+      return NextResponse.json({ error: 'Password is required to create account' }, { status: 400 });
+    }
+    if (!username) {
+      return NextResponse.json({ error: 'Username is required to create account' }, { status: 400 });
+    }
+    if (!dateOfBirth) {
+      return NextResponse.json({ error: 'Date of birth is required to create account' }, { status: 400 });
+    }
+    if (!gender) {
+      return NextResponse.json({ error: 'Gender is required to create account' }, { status: 400 });
+    }
+    
+    const password_hash = await bcrypt.hash(password, 10);
+
+    // Use service to create user
+    const user = await createUserService({
+      user_id: crypto.randomUUID(),
+      email,
+      username,
+      password_hash,
+      first_name: username,
+      date_of_birth: dateOfBirth,
+      gender,
+    });
+
+    if (!user) {
+      console.error('Failed to create user via service');
+      return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
     }
 
     // Only mark OTP as used after successful user creation

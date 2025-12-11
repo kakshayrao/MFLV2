@@ -3,6 +3,7 @@ import { getToken } from 'next-auth/jwt'
 import bcrypt from 'bcryptjs'
 import { getSupabase } from '@/lib/supabase/client'
 import { isRateLimited } from '@/lib/rateLimiter'
+import { getUserById, updateUserProfile } from '@/lib/services/users'
 
 const SECRET = process.env.NEXTAUTH_SECRET
 
@@ -40,45 +41,20 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(String(password), 10)
 
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({
-        username: String(username).toLowerCase(),
-        password_hash: hashed,
-        date_of_birth: dateOfBirth,
-        gender: gender,
-        phone: phone || null,
-      })
-      .eq('user_id', token.id)
+    // Update user profile using service layer
+    const updatedUser = await updateUserProfile(token.id as string, {
+      username: String(username).toLowerCase(),
+      password_hash: hashed,
+      date_of_birth: dateOfBirth,
+      gender: gender,
+      phone: phone || null,
+    })
 
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+    if (!updatedUser) {
+      return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
     }
 
-    console.log('complete-profile updated user:', token.id);
-    // For debugging: fetch the updated user row using service role key and log presence of password_hash
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
-      if (supabaseUrl && supabaseServiceKey) {
-        const { createClient } = await import('@supabase/supabase-js');
-        const serverClient = createClient(supabaseUrl, supabaseServiceKey);
-        const { data: fetchedUser, error: fetchErr } = await serverClient
-          .from('users')
-          .select('user_id, email, username, password_hash, date_of_birth, gender')
-          .eq('user_id', token.id)
-          .single();
-        if (fetchErr) {
-          console.error('complete-profile: service role fetch error:', fetchErr.message || fetchErr);
-        } else {
-          console.log('complete-profile: fetched user after update (password_hash present?):', !!(fetchedUser && fetchedUser.password_hash));
-        }
-      } else {
-        console.warn('complete-profile: missing SUPABASE_SERVICE_ROLE_KEY, cannot verify updated row');
-      }
-    } catch (err) {
-      console.error('complete-profile: error verifying updated user row', err);
-    }
+    console.log('complete-profile updated user via service:', token.id)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getSupabase } from "@/lib/supabase/client";
-import { fetchMemberProfile, fetchTeamMembers } from "@/lib/membership";
+import { fetchMemberProfile, fetchTeamMembers } from "@/lib/services/memberships";
+import { getApprovedEntriesForTeam, getPaginatedEntriesForTeam } from "@/lib/services/entries";
+import { getUsersByIds } from "@/lib/services/users";
 import { ChevronDown } from "lucide-react";
 
 type MemberRow = {
@@ -175,8 +177,7 @@ export default function TeamPage() {
 
   async function loadTeamSummary(currentTeamId: string, timePeriod: string = "overall") {
     // Determine date range based on time period
-    let startDate: string | null = null;
-    let endDate: string | null = null;
+    let dateRange: { start: string; end: string } | undefined = undefined;
     
     if (timePeriod !== "overall") {
       const currentYear = new Date().getUTCFullYear();
@@ -185,34 +186,24 @@ export default function TeamPage() {
       const weekStart = addDaysUTC(seasonStart, (weekNum - 1) * 7);
       const weekEnd = addDaysUTC(weekStart, 6);
       
-      startDate = weekStart.toISOString().split('T')[0];
-      endDate = weekEnd.toISOString().split('T')[0];
+      dateRange = {
+        start: weekStart.toISOString().split('T')[0],
+        end: weekEnd.toISOString().split('T')[0],
+      };
     }
 
-    // Fetch team members (league_member_ids) using new schema
+    // Fetch team members and approved entries in one consolidated service call
     const teamMembers = await fetchTeamMembers(currentTeamId);
     const memberLeagueIds = teamMembers.map(m => String(m.leagueMemberId));
-
-    // Fetch approved entries for team (via league_member_id)
-    let query = getSupabase()
-      .from('effortentry')
-      .select('league_member_id, type, date')
-      .in('league_member_id', memberLeagueIds)
-      .eq('status', 'approved');
-    
-    if (startDate && endDate) {
-      query = query.gte('date', startDate).lte('date', endDate);
-    }
-    
-    const { data: entries } = await query;
+    const entries = await getApprovedEntriesForTeam(memberLeagueIds, dateRange) || [];
 
     // Calculate rest days
-    const restDays = (entries || []).filter((e: { type: string }) => e.type === 'rest').length;
+    const restDays = entries.filter((e: any) => e.type === 'rest').length;
     setTeamRestDays(restDays);
 
     // Calculate missed days
     const memberSet = new Set(teamMembers.map(m => String(m.userId)));
-    const byDateUser = new Set((entries || []).map((e: { date: string; league_member_id: string }) => {
+    const byDateUser = new Set(entries.map((e: any) => {
       const lm = String(e.league_member_id);
       const member = teamMembers.find(tm => String(tm.leagueMemberId) === lm);
       const uid = member ? String(member.userId) : lm;
@@ -269,7 +260,7 @@ export default function TeamPage() {
   }, [dropdownOpen]);
 
   async function loadMembersSummary(currentTeamId: string, timePeriod: string = "overall") {
-    // Fetch team members (with usernames) and build member map
+    // Fetch team members and approved entries in one consolidated service call
     const teamMembers = await fetchTeamMembers(currentTeamId);
     const memberMap = new Map<string, MemberRow>();
     teamMembers.forEach((u) => {
@@ -284,8 +275,7 @@ export default function TeamPage() {
     });
 
     // Determine date range based on time period
-    let startDate: string | null = null;
-    let endDate: string | null = null;
+    let dateRange: { start: string; end: string } | undefined = undefined;
     
     if (timePeriod !== "overall") {
       const currentYear = new Date().getUTCFullYear();
@@ -294,26 +284,18 @@ export default function TeamPage() {
       const weekStart = addDaysUTC(seasonStart, (weekNum - 1) * 7);
       const weekEnd = addDaysUTC(weekStart, 6);
       
-      startDate = weekStart.toISOString().split('T')[0];
-      endDate = weekEnd.toISOString().split('T')[0];
+      dateRange = {
+        start: weekStart.toISOString().split('T')[0],
+        end: weekEnd.toISOString().split('T')[0],
+      };
     }
 
-    // Fetch approved entries for team via league_member_id
+    // Fetch approved entries for team via service layer (consolidates to single query)
     const memberLeagueIds = teamMembers.map(m => String(m.leagueMemberId));
-    let query = getSupabase()
-      .from('effortentry')
-      .select('league_member_id, rr_value, type, date')
-      .in('league_member_id', memberLeagueIds)
-      .eq('status', 'approved');
-    
-    if (startDate && endDate) {
-      query = query.gte('date', startDate).lte('date', endDate);
-    }
-    
-    const { data: entries } = await query;
+    const entries = await getApprovedEntriesForTeam(memberLeagueIds, dateRange) || [];
 
     const rrAgg = new Map<string, { sum: number; count: number }>();
-    (entries || []).forEach((e: { league_member_id: string; rr_value: number | null; type: string }) => {
+    entries.forEach((e: any) => {
       const lm = String(e.league_member_id);
       const member = teamMembers.find(tm => String(tm.leagueMemberId) === lm);
       const uid = member ? String(member.userId) : lm;
@@ -342,7 +324,7 @@ export default function TeamPage() {
 
     // Missed days calculation based on time period
     const datesByUser = new Map<string, Set<string>>();
-    (entries || []).forEach((e: any) => {
+    entries.forEach((e: any) => {
       const ds = String(e.date);
       const uid = String(e.user_id);
       const set = datesByUser.get(uid) || new Set<string>();
@@ -385,38 +367,35 @@ export default function TeamPage() {
   }
 
   async function loadPending(currentTeamId: string, pageNum: number) {
-    const from = (pageNum - 1) * pageSize;
-    const to = from + pageSize - 1;
     // Only show entries from today and yesterday
     const today = new Date();
     const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-    const startStr = ymd(yesterday); // inclusive
-    const endStr = ymd(today);       // inclusive
+    
     // Fetch team members to get league_member_ids
     const teamMembers = await fetchTeamMembers(currentTeamId);
     const leagueMemberIds = teamMembers.map(m => String(m.leagueMemberId)).filter(Boolean);
 
-    // total count (effortentry)
-    const { count } = leagueMemberIds.length ? await getSupabase()
-      .from('effortentry')
-      .select('id', { count: 'exact', head: true })
-      .in('league_member_id', leagueMemberIds)
-      .eq('status', 'approved')
-      .gte('date', startStr)
-      .lte('date', endStr) : { count: 0 } as any;
-    setPendingCount(count || 0);
+    // Get count and paginated entries with single service call
+    const result = await getPaginatedEntriesForTeam(
+      leagueMemberIds,
+      {
+        start: ymd(yesterday),
+        end: ymd(today),
+      },
+      pageNum,
+      pageSize
+    );
 
-    // page data from effortentry
-    const { data: pend } = leagueMemberIds.length ? await getSupabase()
-      .from('effortentry')
-      .select('id,league_member_id,date,type,workout_type,duration,distance,steps,holes,rr_value,status,proof_url')
-      .in('league_member_id', leagueMemberIds)
-      .eq('status','approved')
-      .gte('date', startStr)
-      .lte('date', endStr)
-      .order('date', { ascending: false })
-      .range(from, to) : { data: [] } as any;
+    if (!result) {
+      setPendingCount(0);
+      setPending([]);
+      return;
+    }
 
+    const { count, entries: pend } = result;
+    setPendingCount(count);
+
+    // Map entries to PendingEntry format
     const normalized = (pend || []).map((e: any) => {
       const member = teamMembers.find(tm => String(tm.leagueMemberId) === String(e.league_member_id));
       const uid = member ? String(member.userId) : null;
@@ -437,15 +416,17 @@ export default function TeamPage() {
       } as PendingEntry;
     });
 
-    // Fetch usernames for displayed users
+    // Batch fetch usernames with service layer (replaces loop-based lookup)
     const userIds = Array.from(new Set((normalized || []).map((r: PendingEntry) => r.user_id).filter(Boolean)));
     if (userIds.length) {
-      const { data: users } = await getSupabase().from('users').select('id,username').in('id', userIds as string[]);
-      const usersById = new Map((users || []).map((u: any) => [String(u.id), u]));
-      normalized.forEach((r: PendingEntry) => {
-        const u = usersById.get(String(r.user_id));
-        r.accounts = { first_name: String(u?.username || '') };
-      });
+      const users = await getUsersByIds(userIds as string[]);
+      if (users) {
+        const usersById = new Map(users.map((u: any) => [String(u.id), u]));
+        normalized.forEach((r: PendingEntry) => {
+          const u = usersById.get(String(r.user_id));
+          r.accounts = { first_name: String(u?.username || '') };
+        });
+      }
     }
 
     setPending(normalized || []);

@@ -5,8 +5,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Navbar } from '@/components/layout/navbar'
-import { User } from 'lucide-react'
-import { fetchUserLeagues, type LeagueInfo } from '@/lib/membership'
+import { fetchUserLeagues, type LeagueInfo } from '@/lib/services/memberships'
 import { Trophy, Users, Plus, ExternalLink, Loader2 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -54,7 +53,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
+          <div className="text-center" role="status" aria-live="polite">
             <Loader2 className="w-8 h-8 animate-spin text-rfl-coral mx-auto mb-4" />
             <p className="text-gray-600">Loading your dashboard...</p>
           </div>
@@ -74,7 +73,7 @@ export default function DashboardPage() {
     })),
   ]
   const hasJoinedLeagues = leagues.length > 0
-  const showEmptyState = status === 'authenticated' && !hasJoinedLeagues && !displayLeagues.some((l) => l.key === 'ffl')
+  const showEmptyState = status === 'authenticated' && !hasJoinedLeagues
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -102,7 +101,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {displayLeagues.map((league) => (
               <div
                 key={league.key}
@@ -175,7 +174,7 @@ export default function DashboardPage() {
             <Link href="/leagues/join">
               <Button
                 size="lg"
-                className="bg-rfl-coral hover:bg-rfl-coral/90 text-white min-w-[200px]"
+                className="bg-rfl-coral hover:bg-rfl-coral/90 text-white w-full sm:w-auto sm:min-w-[200px]"
               >
                 <Users className="w-5 h-5 mr-2" />
                 Join a League
@@ -185,7 +184,7 @@ export default function DashboardPage() {
               <Button
                 size="lg"
                 variant="outline"
-                className="border-rfl-navy text-rfl-navy hover:bg-rfl-navy hover:text-white min-w-[200px]"
+                className="border-rfl-navy text-rfl-navy hover:bg-rfl-navy hover:text-white w-full sm:w-auto sm:min-w-[200px]"
               >
                 <Plus className="w-5 h-5 mr-2" />
                 Start a League

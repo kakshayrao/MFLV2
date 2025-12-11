@@ -1,21 +1,23 @@
 /**
- * GET /api/leagues/[id]/members - List league members (with roles)
- * POST /api/leagues/[id]/members - Add member (Host/Governor only)
+ * POST /api/leagues/[id]/roles/assign - Assign role to user (Host only)
+ * DELETE /api/leagues/[id]/roles/[userId] - Remove role from user (Host only)
+ * GET /api/leagues/[id]/roles - List all available roles for league
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth/config';
 import {
-  getLeagueMembersForLeague,
-  addLeagueMember,
-} from '@/lib/services/memberships';
-import { getUserRolesInLeague } from '@/lib/services/leagues';
-import { userHasAnyRole } from '@/lib/services/roles';
+  assignRoleToUser,
+  removeRoleFromUser,
+  getUserRolesInLeague,
+  getUserRoleInLeague,
+} from '@/lib/services/leagues';
+import { getAllRoles, getRoleByName, userHasRole } from '@/lib/services/roles';
 import { z } from 'zod';
 
-const addMemberSchema = z.object({
+const assignRoleSchema = z.object({
   user_id: z.string().uuid('Invalid user ID'),
-  team_id: z.string().uuid('Invalid team ID').optional(),
+  role_name: z.string().min(1, 'Role name required'),
 });
 
 export async function GET(
@@ -29,29 +31,22 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is member of league
-    const members = await getLeagueMembersForLeague(id);
-    const isUserMember = members.some((m) => m.user_id === session.user.id);
-    if (!isUserMember) {
+    // Verify user is member of league
+    const userRole = await getUserRoleInLeague(session.user.id, id);
+    if (!userRole) {
       return NextResponse.json(
         { error: 'You are not a member of this league' },
         { status: 403 }
       );
     }
 
-    // Fetch members with their roles
-    const membersWithRoles = await Promise.all(
-      members.map(async (member) => ({
-        ...member,
-        roles: await getUserRolesInLeague(member.user_id, id),
-      }))
-    );
-
-    return NextResponse.json({ data: membersWithRoles, success: true });
+    // Get all available roles
+    const roles = await getAllRoles();
+    return NextResponse.json({ data: roles, success: true });
   } catch (error) {
-    console.error('Error fetching league members:', error);
+    console.error('Error fetching roles:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch members' },
+      { error: 'Failed to fetch roles' },
       { status: 500 }
     );
   }
@@ -68,41 +63,41 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check permissions (must be host or governor)
-    const canAdd = await userHasAnyRole(session.user.id, id, [
-      'host',
-      'governor',
-    ]);
-    if (!canAdd) {
+    // Check permission (must be host)
+    const isHost = await userHasRole(session.user.id, id, 'host');
+    if (!isHost) {
       return NextResponse.json(
-        { error: 'Only host or governor can add members' },
+        { error: 'Only host can assign roles' },
         { status: 403 }
       );
     }
 
     const body = await request.json();
-    const validated = addMemberSchema.parse(body);
+    const validated = assignRoleSchema.parse(body);
 
-    const member = await addLeagueMember(
-      validated.user_id,
-      id,
-      validated.team_id,
-      session.user.id
-    );
-
-    if (!member) {
+    // Verify role exists
+    const role = await getRoleByName(validated.role_name);
+    if (!role) {
       return NextResponse.json(
-        { error: 'Failed to add member' },
+        { error: 'Role not found' },
+        { status: 404 }
+      );
+    }
+
+    const result = await assignRoleToUser(validated.user_id, id, validated.role_name, session.user.id);
+    if (!result) {
+      return NextResponse.json(
+        { error: 'Failed to assign role' },
         { status: 500 }
       );
     }
 
     return NextResponse.json(
-      { data: member, success: true },
+      { data: result, success: true, message: `Role ${validated.role_name} assigned successfully` },
       { status: 201 }
     );
   } catch (error) {
-    console.error('Error adding member:', error);
+    console.error('Error assigning role:', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Validation failed', details: error.errors },
@@ -110,9 +105,8 @@ export async function POST(
       );
     }
     return NextResponse.json(
-      { error: 'Failed to add member' },
+      { error: 'Failed to assign role' },
       { status: 500 }
     );
   }
 }
-

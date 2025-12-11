@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getSupabase } from "@/lib/supabase/client";
 import { calculateRR } from "@/lib/supabase/types";
-import { fetchMemberProfile, fetchTeamMembers } from "@/lib/membership";
+import { fetchMemberProfile, fetchTeamMembers } from "@/lib/services/memberships";
 import TeamProgressChart from "./TeamProgressChart";
 
 // 11-player teams adjustment factor (normalize to 10-player baseline)
