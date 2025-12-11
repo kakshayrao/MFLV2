@@ -38,6 +38,19 @@ export interface League extends LeagueInput {
 export async function createLeague(userId: string, data: LeagueInput): Promise<League | null> {
   try {
     const supabase = getSupabase();
+    
+    // Generate a unique league code (6 characters: ABC123)
+    const generateLeagueCode = () => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    };
+    
+    const leagueCode = generateLeagueCode();
+    
     const { data: league, error } = await supabase
       .from('leagues')
       .insert({
@@ -50,6 +63,7 @@ export async function createLeague(userId: string, data: LeagueInput): Promise<L
         team_size: data.team_size,
         rest_days: data.rest_days ?? 0,
         stripe_product_id: data.stripe_product_id,
+        league_code: leagueCode,
         status: 'draft',
         is_active: true,
         host_id: userId,

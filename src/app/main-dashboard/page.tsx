@@ -1,230 +1,287 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { Navbar } from '@/components/layout/navbar'
-import { Trophy, Users, Plus, ExternalLink, Loader2, Sparkles } from 'lucide-react'
+import { Trophy, Users, Plus, Sparkles } from 'lucide-react'
+import { TopNav } from '@/components/layout/topnav'
 
-type LeagueInfo = {
+// Types
+type DashboardStats = {
+  totalLeagues: number
+}
+
+type League = {
   league_id: string
   name: string
   description: string | null
   cover_image: string | null
+  members?: number
+  status?: string
 }
 
-export default function DashboardPage() {
-  const { data: session, status } = useSession()
-  const [leagues, setLeagues] = useState<LeagueInfo[]>([])
+type DashboardData = {
+  stats: DashboardStats
+  leagues: League[]
+}
+
+// Hooks
+function useDashboardData() {
+  const { data: session } = useSession()
+  const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const loadLeagues = async () => {
+    const fetchData = async () => {
       if (!session?.user) {
         setLoading(false)
         return
       }
 
       try {
+        setLoading(true)
         setError(null)
-        const res = await fetch('/api/dashboard/leagues', { cache: 'no-store' })
+        
+        // Try API first
+        const res = await fetch('/api/v1/leagues', { cache: 'no-store' })
+        
         if (!res.ok) {
-          throw new Error(`Failed to fetch leagues: ${res.status}`)
+          throw new Error('API failed')
         }
-        const json = (await res.json()) as { leagues?: LeagueInfo[]; error?: string }
-        setLeagues(json.leagues || [])
+        
+        const json = await res.json()
+        setData({
+          stats: {
+            totalLeagues: json.leagues?.length || 0,
+          },
+          leagues: json.leagues || []
+        })
       } catch (err) {
-        console.error('Error loading leagues:', err)
-        setError('Failed to load your leagues. Please try again.')
+        console.warn('API failed:', err)
+        setError('Unable to load dashboard data')
       } finally {
         setLoading(false)
       }
     }
 
-    if (status === 'authenticated') {
-      loadLeagues()
-    } else if (status === 'unauthenticated') {
-      setLoading(false)
-    }
-  }, [session?.user, status])
+    fetchData()
+  }, [session?.user])
 
-  if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center" role="status" aria-live="polite">
-            <Loader2 className="w-8 h-8 animate-spin text-rfl-coral mx-auto mb-4" />
-            <p className="text-gray-600">Loading your dashboard...</p>
+  return { data, loading, error, refetch: () => {} }
+}
+
+// Components
+// TopNav moved to dedicated component
+
+function Hero({ userName, stats, loading }: { userName: string | null | undefined; stats: DashboardStats | null; loading: boolean }) {
+  return (
+    <section className="card-elevated p-8 mb-8">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div className="flex-1">
+          <p className="flex items-center gap-2 text-sm font-semibold subtle mb-2">
+            <Sparkles className="h-4 w-4" /> Personalized overview
+          </p>
+          <h1 className="headline text-3xl sm:text-4xl mb-4">
+            Welcome back{userName ? `, ${userName}` : ''}!
+          </h1>
+          
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 mt-6">
+            <div className="text-center">
+              {loading ? (
+                <div className="h-8 w-16 mx-auto rounded animate-pulse" style={{ background: '#E6E9EE' }} />
+              ) : (
+                <div className="text-2xl sm:text-3xl font-extrabold" style={{ color: '#0B365F' }}>{stats?.totalLeagues || 0}</div>
+              )}
+              <div className="text-xs sm:text-sm" style={{ color: '#6B7280' }}>Total Leagues</div>
+            </div>
           </div>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row lg:flex-col gap-3 lg:w-64">
+          <Link href="/leagues/join" className="flex-1">
+            <Button className="btn-accent w-full" size="lg">
+              <Users className="w-5 h-5 mr-2" /> Join a League
+            </Button>
+          </Link>
+          <Link href="/leagues/create" className="flex-1">
+            <Button variant="outline" className="btn-outline w-full" size="lg">
+              <Plus className="w-5 h-5 mr-2" /> Start a League
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function StatCard({ icon: Icon, label, value, loading }: { icon: React.ElementType; label: string; value: string | number; loading: boolean }) {
+  return (
+    <div className="card p-6 hover:shadow-lg transition-all" style={{ '--tw-shadow-colored': 'var(--shadow-md)' } as React.CSSProperties}>
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'var(--color-accent)', opacity: 0.1 }}>
+          <Icon className="w-6 h-6" style={{ color: 'var(--color-accent)' }} />
+        </div>
+        <div>
+          <div className="text-sm subtle">{label}</div>
+          {loading ? (
+            <div className="h-7 w-20 mt-1 rounded animate-pulse" style={{ background: 'var(--color-border)' }} />
+          ) : (
+            <div className="text-2xl font-bold headline mt-1">{value}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LeagueSkeleton() {
+  return (
+    <div className="card overflow-hidden animate-pulse">
+      <div className="h-36" style={{ background: 'var(--color-border)' }} />
+      <div className="p-4 space-y-3">
+        <div className="h-4 rounded" style={{ background: 'var(--color-border)', width: '75%' }} />
+        <div className="h-3 rounded" style={{ background: 'var(--color-border)', width: '90%' }} />
+        <div className="h-9 rounded mt-4" style={{ background: 'var(--color-border)' }} />
+      </div>
+    </div>
+  )
+}
+
+function LeagueCard({ league }: { league: League }) {
+  return (
+    <Link href={`/leagues/${league.league_id}`}>
+      <div 
+        className="card group overflow-hidden transition-all hover:-translate-y-1 focus-within:ring-2 focus-within:ring-offset-2"
+        style={{ boxShadow: 'var(--shadow-md)', '--tw-ring-color': 'var(--color-primary)' } as React.CSSProperties}
+        tabIndex={0}
+      >
+        <div className="relative h-36" style={{ background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)' }}>
+          {league.cover_image && (
+            <img
+              src={league.cover_image}
+              alt=""
+              className="h-full w-full object-cover opacity-90"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+          <div className="absolute bottom-3 left-4 right-4 text-white">
+            <div className="text-xs uppercase tracking-wide text-white/80 font-medium">League</div>
+            <div className="text-lg font-bold leading-tight mt-1">{league.name}</div>
+          </div>
+        </div>
+        <div className="p-4">
+          <p className="text-sm subtle line-clamp-2 min-h-[40px]">
+            {league.description || 'No description available'}
+          </p>
+          {league.members && (
+            <div className="flex items-center gap-1 mt-3 text-sm subtle">
+              <Users className="w-4 h-4" />
+              <span>{league.members} members</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+function EmptyLeagues() {
+  return (
+    <div className="card-elevated p-12 text-center">
+      <div className="w-24 h-24 mx-auto mb-6 rounded-2xl flex items-center justify-center" style={{ background: 'var(--color-background)' }}>
+        <Trophy className="w-12 h-12" style={{ color: 'var(--color-muted)' }} />
+      </div>
+      <h3 className="text-xl font-bold headline mb-3">No leagues yet</h3>
+      <p className="subtle mb-6 max-w-md mx-auto">
+        You haven't joined any fitness leagues. Start your fitness journey by joining an existing league or creating your own!
+      </p>
+      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <Link href="/leagues/join">
+          <Button className="btn-accent" size="lg">
+            <Users className="w-5 h-5 mr-2" /> Join a League
+          </Button>
+        </Link>
+        <Link href="/leagues/create">
+          <Button variant="outline" className="btn-outline" size="lg">
+            <Plus className="w-5 h-5 mr-2" /> Create League
+          </Button>
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+// Premium teaser removed per requirements
+
+function LeaguesList({ leagues, loading }: { leagues: League[]; loading: boolean }) {
+  return (
+    <section className="mb-8">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold headline flex items-center gap-2">
+          <Trophy className="w-6 h-6" style={{ color: 'var(--color-accent)' }} /> My Leagues
+        </h2>
+      </div>
+
+      {loading ? (
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <LeagueSkeleton />
+          <LeagueSkeleton />
+          <LeagueSkeleton />
+        </div>
+      ) : leagues.length === 0 ? (
+        <EmptyLeagues />
+      ) : (
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {leagues.map((league) => (
+            <LeagueCard key={league.league_id} league={league} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// Main Component
+export default function DashboardPage() {
+  const { data: session, status } = useSession()
+  const { data, loading, error } = useDashboardData()
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-background)' }}>
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-full border-4 border-t-transparent animate-spin mx-auto mb-4" style={{ borderColor: 'var(--color-primary)', borderTopColor: 'transparent' }} />
+          <p className="subtle">Loading dashboard...</p>
         </div>
       </div>
     )
   }
 
-  const displayLeagues = leagues.map((league) => ({
-    key: league.league_id,
-    name: league.name,
-    description: league.description || 'No description available',
-    href: `/leagues/${league.league_id}`,
-    cover_image: league.cover_image || null,
-  }))
-  const hasJoinedLeagues = leagues.length > 0
-  const showEmptyState = status === 'authenticated' && !hasJoinedLeagues
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f7f9fb] via-white to-[#eef2f7]">
-      <Navbar navLinks={[]} />
+    <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
+      <TopNav user={{ id: (session?.user?.id as string) || 'u', firstName: (session?.user?.name || 'User').split(' ')[0] }} onSignOut={() => signOut()} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 rounded-2xl bg-white/80 backdrop-blur border border-white/60 shadow-sm p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="flex items-center gap-2 text-sm font-semibold text-rfl-coral"><Sparkles className="h-4 w-4" /> Personalized overview</p>
-              <h1 className="text-3xl font-bold text-rfl-navy leading-tight">
-                Welcome back{session?.user?.name ? `, ${session.user.name}` : ''}!
-              </h1>
-              <p className="mt-2 text-gray-600">Your leagues, progress, and quick actions in one place.</p>
-            </div>
-            <div className="flex gap-3">
-              <Link href="/leagues/join">
-                <Button variant="outline" className="border-rfl-navy text-rfl-navy hover:bg-rfl-navy hover:text-white">
-                  <Users className="w-4 h-4 mr-2" /> Join a League
-                </Button>
-              </Link>
-              <Link href="/leagues/create">
-                <Button className="bg-rfl-coral hover:bg-rfl-coral/90 text-white">
-                  <Plus className="w-4 h-4 mr-2" /> Start a League
-                </Button>
-              </Link>
-            </div>
-          </div>
+        <Hero userName={session?.user?.name} stats={data?.stats || null} loading={loading} />
 
-          <div className="mt-4 text-sm text-gray-600">
-            Your leagues and quick actions at a glance.
-          </div>
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-3 mb-8">
+          <StatCard icon={Trophy} label="Total Leagues" value={data?.stats?.totalLeagues || 0} loading={loading} />
         </div>
 
-        <section className="mb-12">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-rfl-navy flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-rfl-coral" /> My Leagues
-            </h2>
-            {loading && <span className="text-sm text-gray-500">Refreshing...</span>}
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-              <p className="text-red-700">{error}</p>
-            </div>
-          )}
-
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {displayLeagues.map((league) => (
-              <LeagueCard key={league.key} league={league} />
-            ))}
-          </div>
-
-          {showEmptyState && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center mt-6">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">You are not in any leagues yet</h3>
-              <p className="text-gray-600 mb-4">
-                You haven't joined any fitness leagues. Get started by joining a league or creating your own!
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Link href="/leagues/join">
-                  <Button className="bg-rfl-coral hover:bg-rfl-coral/90 text-white">
-                    Join a League
-                  </Button>
-                </Link>
-                <Link href="/leagues/create">
-                  <Button variant="outline" className="border-rfl-navy text-rfl-navy hover:bg-rfl-navy hover:text-white">
-                    Start a League
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-          <h2 className="text-xl font-semibold text-rfl-navy mb-6 text-center">
-            Quick Actions
-          </h2>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link href="/leagues/join">
-              <Button
-                size="lg"
-                className="bg-rfl-coral hover:bg-rfl-coral/90 text-white w-full sm:w-auto sm:min-w-[200px]"
-              >
-                <Users className="w-5 h-5 mr-2" />
-                Join a League
-              </Button>
-            </Link>
-            <Link href="/leagues/create">
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-rfl-navy text-rfl-navy hover:bg-rfl-navy hover:text-white w-full sm:w-auto sm:min-w-[200px]"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Start a League
-              </Button>
+        {error && (
+          <div role="alert" aria-live="assertive" className="card p-4 mb-6 border" style={{ borderColor: '#E6E9EE', background: '#fff' }}>
+            <p className="text-sm mb-3" style={{ color: '#E9573F' }}>{error}</p>
+            <Link href="/main-dashboard" className="inline-block">
+              <Button variant="outline" className="btn-outline">Retry</Button>
             </Link>
           </div>
-        </section>
-      </main>
-    </div>
-  )
-}
-
-type LeagueCardProps = {
-  league: {
-    key: string
-    name: string
-    description: string | null
-    href: string
-    cover_image: string | null
-  }
-}
-
-function LeagueCard({ league }: LeagueCardProps) {
-  return (
-    <div className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-      <div className="relative h-36 bg-gradient-to-br from-rfl-navy to-rfl-light-blue">
-        {league.cover_image && (
-          <img
-            src={league.cover_image}
-            alt={league.name}
-            className="h-full w-full object-cover opacity-90"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none'
-            }}
-          />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/10 to-transparent" />
-        <div className="absolute bottom-3 left-4 right-4 text-white">
-          <div className="text-xs uppercase tracking-wide text-white/80">League</div>
-          <div className="text-lg font-semibold leading-tight">{league.name}</div>
-        </div>
-      </div>
-      <div className="p-4">
-        <p className="text-sm text-gray-600 line-clamp-2 min-h-[40px]">
-          {league.description || 'No description available'}
-        </p>
-        <Link href={league.href} className="block mt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full border-rfl-coral text-rfl-coral hover:bg-rfl-coral hover:text-white"
-          >
-            <ExternalLink className="w-4 h-4 mr-1" />
-            Open League
-          </Button>
-        </Link>
-      </div>
+
+        <LeaguesList leagues={data?.leagues || []} loading={loading} />
+      </main>
     </div>
   )
 }
