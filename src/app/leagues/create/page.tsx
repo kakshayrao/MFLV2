@@ -131,23 +131,25 @@ export default function CreateLeaguePage() {
   const total = subtotal + gst;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 py-12 px-4">
         <div className="max-w-2xl mx-auto">
           {/* Progress Steps */}
           <div className="flex items-center justify-center mb-8">
             {[1, 2, 3].map((s) => (
               <div key={s} className="flex items-center">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    step >= s ? "bg-black text-white" : "bg-gray-200 text-gray-500"
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-md transition-all duration-300 relative z-10 ${
+                    step >= s 
+                      ? "bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 text-white scale-110" 
+                      : "bg-white text-gray-500 border-2 border-gray-300 shadow-sm"
                   }`}
                 >
                   {s}
                 </div>
                 {s < 3 && (
                   <div
-                    className={`w-16 h-1 mx-2 ${
-                      step > s ? "bg-black" : "bg-gray-200"
+                    className={`w-20 h-1 mx-3 rounded-full transition-all duration-300 z-0 ${
+                      step > s ? "bg-gradient-to-r from-purple-500 to-pink-500" : "bg-gray-300"
                     }`}
                   />
                 )}
@@ -174,7 +176,7 @@ export default function CreateLeaguePage() {
             </div>
           )}
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border-2 border-purple-100 p-8 shadow-xl shadow-purple-100/50">
             {/* Step 1: Basic Info */}
             {step === 1 && (
               <div className="space-y-5">
@@ -184,7 +186,7 @@ export default function CreateLeaguePage() {
                   </label>
                   <input
                     type="text"
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all duration-200"
                     placeholder="Enter league name"
                     value={formData.league_name}
                     onChange={(e) => updateField("league_name", e.target.value)}
@@ -198,7 +200,7 @@ export default function CreateLeaguePage() {
                     </label>
                     <input
                       type="date"
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all duration-200"
                       value={formData.start_date}
                       onChange={(e) => updateField("start_date", e.target.value)}
                     />
@@ -209,7 +211,7 @@ export default function CreateLeaguePage() {
                     </label>
                     <input
                       type="date"
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all duration-200"
                       value={formData.end_date}
                       onChange={(e) => updateField("end_date", e.target.value)}
                     />
@@ -217,9 +219,9 @@ export default function CreateLeaguePage() {
                 </div>
 
                 {numDays > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <span className="text-sm text-gray-500">Duration</span>
-                    <p className="text-xl font-semibold text-gray-900">{numDays} days</p>
+                  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 rounded-lg border border-purple-100">
+                    <span className="text-sm text-purple-600 font-medium">Duration</span>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">{numDays} days</p>
                   </div>
                 )}
 
@@ -228,7 +230,7 @@ export default function CreateLeaguePage() {
                     Description (optional)
                   </label>
                   <textarea
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none resize-none"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none resize-none transition-all duration-200"
                     rows={3}
                     placeholder="Describe your league..."
                     value={formData.description}
@@ -250,7 +252,7 @@ export default function CreateLeaguePage() {
                       type="number"
                       min="2"
                       max="20"
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all duration-200"
                       value={formData.num_teams}
                       onChange={(e) => updateField("num_teams", parseInt(e.target.value) || 2)}
                     />
@@ -263,7 +265,7 @@ export default function CreateLeaguePage() {
                       type="number"
                       min="1"
                       max="50"
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all duration-200"
                       value={formData.team_size}
                       onChange={(e) => updateField("team_size", parseInt(e.target.value) || 1)}
                     />
@@ -275,7 +277,7 @@ export default function CreateLeaguePage() {
                     Rest Days per Week
                   </label>
                   <select
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all duration-200"
                     value={formData.rest_days}
                     onChange={(e) => updateField("rest_days", parseInt(e.target.value))}
                   >
@@ -314,9 +316,9 @@ export default function CreateLeaguePage() {
                   </label>
                 </div>
 
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">Total Participants</p>
-                  <p className="text-xl font-semibold text-gray-900">
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 rounded-lg border border-purple-100">
+                  <p className="text-sm text-purple-600 font-medium">Total Participants</p>
+                  <p className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                     {formData.num_teams * formData.team_size} members
                   </p>
                 </div>
@@ -407,7 +409,7 @@ export default function CreateLeaguePage() {
                 <Button
                   type="button"
                   onClick={handleNext}
-                  className="bg-black text-white"
+                  className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-300"
                 >
                   Continue
                 </Button>
@@ -416,7 +418,7 @@ export default function CreateLeaguePage() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="bg-black text-white"
+                  className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-300 disabled:opacity-50"
                 >
                   {loading ? "Creating..." : "Create & Pay"}
                 </Button>

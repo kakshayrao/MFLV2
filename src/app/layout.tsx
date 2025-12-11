@@ -24,7 +24,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = (await getServerSession(authOptions as any)) as import('next-auth').Session | null;
+  let session = null;
+  try {
+    session = (await getServerSession(authOptions as any)) as import('next-auth').Session | null;
+  } catch (error) {
+    console.error("Session error:", error);
+    // Continue with null session - user will need to login
+  }
   return (
     <html lang="en">
       <head>
