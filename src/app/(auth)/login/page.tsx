@@ -14,7 +14,7 @@ export default function AuthPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
-  const callbackUrl = (searchParams?.get?.("callbackUrl") as string) || "/dashboard";
+  const callbackUrl = (searchParams?.get?.("callbackUrl") as string) || "/main-dashboard";
   
   const initialMode = (searchParams?.get?.("mode") as "signin" | "signup") || "signin";
   const [mode, setMode] = useState<AuthMode>(initialMode);
@@ -37,7 +37,7 @@ export default function AuthPage() {
   useEffect(() => {
     if (status === "authenticated") {
       const needs = (session?.user as any)?.needsProfileCompletion;
-      router.replace(needs ? "/complete-profile" : "/dashboard");
+      router.replace(needs ? "/complete-profile" : "/main-dashboard");
     }
   }, [status, session, router, callbackUrl]);
 
@@ -162,7 +162,7 @@ export default function AuthPage() {
       });
 
       if (signInRes?.ok) {
-        router.push("/dashboard");
+        router.push("/main-dashboard");
       } else {
         setError("Account created but sign-in failed. Please try signing in.");
         setIsLoading(false);

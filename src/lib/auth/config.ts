@@ -61,6 +61,25 @@ const authConfig = {
     }),
   ],
   callbacks: {
+    async jwt({ token, user, trigger }: { token: any; user?: any; trigger?: string }) {
+      if (user) {
+        token.id = user.id;
+        token.name = user.name;
+        token.email = user.email;
+        token.needsProfileCompletion = user.needsProfileCompletion || false;
+      }
+      
+      return token;
+    },
+    async session({ session, token }: { session: any; token: any }) {
+      session.user = {
+        id: String(token.id || ""),
+        name: String(token.name || ""),
+        email: String(token.email || ""),
+        needsProfileCompletion: token.needsProfileCompletion || false,
+      };
+      return session;
+    },
     async signIn({ user, account, profile }: any) {
       // Allow credentials login
       if (account?.provider === "credentials") {
@@ -114,36 +133,21 @@ const authConfig = {
       
       return false;
     },
-    async jwt({ token, user, trigger }: { token: any; user?: any; trigger?: string }) {
-      if (user) {
-        token.id = user.id;
-        token.name = user.name;
-        token.email = user.email;
-        token.needsProfileCompletion = user.needsProfileCompletion || false;
-      }
-      
-      // Re-fetch profile completion status on update
-      if (trigger === "update" && token.id) {
-        const { getSupabase } = await import("@/lib/supabase/client");
-        const { data } = await getSupabase()
-          .from("users")
-          .select("password_hash, date_of_birth, gender")
-          .eq("user_id", token.id)
-          .single();
-        
-        token.needsProfileCompletion = !(data?.password_hash && data?.date_of_birth && data?.gender);
-      }
-      
-      return token;
+  },
+  events: {
+    async signOut() {
+      // Cookies will be cleared automatically
     },
-    async session({ session, token }: { session: any; token: any }) {
-      session.user = {
-        id: String(token.id || ""),
-        name: String(token.name || ""),
-        email: String(token.email || ""),
-        needsProfileCompletion: token.needsProfileCompletion || false,
-      };
-      return session;
+  },
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
     },
   },
 };

@@ -64,3 +64,30 @@ export async function fetchTeamMembers(teamId: string): Promise<MemberProfile[]>
     } as MemberProfile;
   });
 }
+
+export type LeagueInfo = {
+  league_id: string;
+  name: string;
+  description: string | null;
+  cover_image: string | null;
+};
+
+// Fetch leagues that the given user belongs to
+export async function fetchUserLeagues(userId: string): Promise<LeagueInfo[]> {
+  const { data, error } = await getSupabase()
+    .from('leaguemembers')
+    .select('league_id, leagues(name, description, cover_image)')
+    .eq('user_id', userId);
+
+  if (error || !data) return [];
+
+  return (data as any[]).map((row) => {
+    const league = (row as any).leagues || {};
+    return {
+      league_id: String(row.league_id),
+      name: league?.name ? String(league.name) : 'League',
+      description: league?.description ? String(league.description) : null,
+      cover_image: league?.cover_image ? String(league.cover_image) : null,
+    } as LeagueInfo;
+  });
+}

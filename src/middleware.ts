@@ -7,7 +7,7 @@ export async function middleware(req: NextRequest) {
   
   const isAuthRoute = req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/signup')
   const isCompleteProfile = req.nextUrl.pathname.startsWith('/complete-profile')
-  const isProtected = ['/dashboard', '/team', '/leaderboards', '/rules', '/my-challenges', '/governor', '/profile'].some((p) => req.nextUrl.pathname.startsWith(p))
+  const isProtected = ['/dashboard', '/main-dashboard', '/team', '/leaderboards', '/rules', '/my-challenges', '/governor', '/profile'].some((p) => req.nextUrl.pathname.startsWith(p))
 
   // Only validate token for protected routes
   if (isProtected || isCompleteProfile) {
@@ -27,7 +27,7 @@ export async function middleware(req: NextRequest) {
 
       // If profile is complete and trying to access complete-profile, redirect to dashboard
       if (!(token as any).needsProfileCompletion && isCompleteProfile) {
-        const url = new URL('/dashboard', req.url)
+        const url = new URL('/main-dashboard', req.url)
         return NextResponse.redirect(url)
       }
     } catch (error) {

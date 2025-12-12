@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendEmail } from '../../../../lib/mailer';
+import { rateLimitEmailAndIP } from '../../../../lib/rateLimiter';
+import { validateMailerEnv, validateSupabaseEnv } from '../../../../lib/env';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
@@ -21,6 +23,20 @@ export async function POST(req: Request) {
     const email = (body?.email || '').toLowerCase().trim();
     if (!email) return NextResponse.json({ error: 'Missing email' }, { status: 400 });
 
+    // validate envs (warn if missing)
+    validateMailerEnv();
+    validateSupabaseEnv();
+
+    // rate limit by email and IP
+    const ip = (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '').split(',')[0].trim() || 'unknown';
+    const { emailRes, ipRes } = await rateLimitEmailAndIP(email, ip);
+    if (!emailRes.allowed) {
+      return NextResponse.json({ error: 'Too many requests for this email. Try again later.' }, { status: 429 });
+    }
+    if (!ipRes.allowed) {
+      return NextResponse.json({ error: 'Too many requests from this IP. Try again later.' }, { status: 429 });
+    }
+
     const otp = generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
 
@@ -28,7 +44,6 @@ export async function POST(req: Request) {
     const { data, error } = await supabaseAdmin.from('email_otps').insert([{ email, otp, expires_at: expiresAt, used: false }]);
     if (error) {
       console.error('Failed to insert OTP:', error);
-      // include DB error in response in dev for easier debugging
       const message = process.env.NODE_ENV === 'production' ? 'Failed to create OTP' : `Failed to create OTP: ${error.message || JSON.stringify(error)}`;
       return NextResponse.json({ error: message }, { status: 500 });
     }

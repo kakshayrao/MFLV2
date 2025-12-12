@@ -9,9 +9,13 @@ import bcrypt from 'bcryptjs';
 const authOptions = {
   session: {
     strategy: "jwt" as const,
+    // Keep sessions reasonably long and avoid frequent token rotation
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
   },
-  // Enable debug logging while diagnosing OAuth issues
-  debug: true,
+  // Disable verbose NextAuth debug in development to avoid noisy logs.
+  // Set to `true` only when actively diagnosing auth flows.
+  debug: false,
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
     Google({
@@ -27,7 +31,7 @@ const authOptions = {
       async authorize(credentials) {
         const email = (credentials?.email || "").trim().toLowerCase();
         const password = String(credentials?.password || "");
-        console.log('Credentials authorize called for email:', email ? '[REDACTED]' : '(none)');
+        // Minimal logging: avoid spamming logs on every authorize attempt
         if (!email || !password) return null;
         try {
           const { data: user, error: uErr } = await getSupabase()
@@ -36,10 +40,9 @@ const authOptions = {
             .eq("email", email)
             .maybeSingle();
           if (uErr) console.error('Credentials authorize - supabase error:', uErr.message || uErr);
-          console.log('Credentials authorize - found user?', !!user);
           if (user && (user as any).password_hash) {
             const match = await bcrypt.compare(password, String((user as any).password_hash));
-            console.log('Credentials authorize - bcrypt compare result:', match);
+            // do not log bcrypt results in detail
             if (match) {
               return { id: (user as any).user_id, name: (user as any).username, email: (user as any).email } as any;
             }
@@ -53,7 +56,7 @@ const authOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }: any) {
-      console.log("NextAuth signIn callback", { provider: account?.provider, profile });
+      // signIn callback invoked; keep the implementation but avoid verbose logging
       try {
       // Allow credentials login
       if (account?.provider === "credentials") {
@@ -110,7 +113,7 @@ const authOptions = {
       }
     },
     async jwt({ token, user, trigger }: { token: any; user?: any; trigger?: string }) {
-      console.log('NextAuth jwt callback', { token: { ...token }, user, trigger });
+      // Keep jwt callback minimal and avoid verbose token dumps
       if (user) {
         (token as any).id = (user as any).id;
         (token as any).name = (user as any).name;
@@ -118,38 +121,15 @@ const authOptions = {
         (token as any).needsProfileCompletion = (user as any).needsProfileCompletion || false;
       }
 
-      // When session.update() is called from client, NextAuth will call jwt with trigger === 'update'
-      // Re-fetch profile completion status from the database so the token reflects latest values
-      if (trigger === 'update' && (token as any)?.id) {
-        try {
-          // Use server-side Supabase client (service role key) for secure read access
-          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
-          if (!supabaseUrl || !supabaseServiceKey) {
-            console.error('Missing Supabase service role key for jwt update check');
-          } else {
-            const serverClient = createClient(supabaseUrl, supabaseServiceKey);
-            const { data, error: svcErr } = await serverClient
-              .from('users')
-              .select('user_id, username, password_hash, date_of_birth, gender')
-              .eq('user_id', (token as any).id)
-              .single();
-            if (svcErr) {
-              console.error('Service role query error in jwt update check:', svcErr.message || svcErr);
-            }
-            console.log('jwt update check - fetched user row:', data);
-            (token as any).needsProfileCompletion = !(data?.password_hash && data?.date_of_birth && data?.gender);
-            console.log('jwt update check - needsProfileCompletion set to', (token as any).needsProfileCompletion);
-          }
-        } catch (err) {
-          console.error('Error refreshing profile completion in jwt callback', err);
-        }
-      }
+      // Avoid DB reads inside jwt callback in production. Profile completion
+      // should be refreshed by calling the dedicated `/api/auth/refresh-profile`
+      // endpoint from the client after profile updates and then invoking
+      // `session.update({ needsProfileCompletion })` with the returned value.
 
       return token;
     },
     async session({ session, token }: { session: any; token: any }) {
-      console.log('NextAuth session callback', { session, token });
+      // Avoid logging session on every request
       (session as any).user = {
         id: String((token as any)?.id || ""),
         name: String((token as any)?.name ?? ""),
