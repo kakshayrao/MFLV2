@@ -5,6 +5,7 @@ import { signIn, useSession } from "next-auth/react";
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 
@@ -186,6 +187,16 @@ export default function AuthPage() {
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-white via-rfl-peach/30 to-white">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+          {/* Back Button */}
+          <div className="mb-4">
+            <Link 
+              href="/landing-page"
+              className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              ← Back
+            </Link>
+          </div>
+          
           {/* Toggle Tabs */}
           <div className="flex gap-2 mb-6 p-1 bg-gray-100 rounded-lg">
             <button

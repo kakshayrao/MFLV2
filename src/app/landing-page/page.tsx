@@ -43,9 +43,6 @@ export default function Landing() {
               <Link href="/login?mode=signup">
                 <Button className="px-5 py-2">Get started</Button>
               </Link>
-              <Link href="/features" className="text-sm text-gray-600 hidden sm:inline">
-                See features
-              </Link>
             </div>
 
             <div className="mt-4 text-xs text-gray-500 flex gap-3 sm:gap-6 flex-wrap">
@@ -130,43 +127,6 @@ export default function Landing() {
   </div>
 </section>
 
-      {/* HOW IT WORKS - Three Steps */}
-      <section className="max-w-5xl mx-auto px-4 py-10">
-        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8">Get Started in Three Simple Steps</h2>
-        
-        <div className="grid sm:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-700 text-lg">01</div>
-              <h3 className="text-lg font-semibold">Create a League</h3>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Set up your fitness challenge with custom rules, duration, and scoring that fits your group's goals.
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center font-bold text-rose-700 text-lg">02</div>
-              <h3 className="text-lg font-semibold">Build Your Team</h3>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Invite members, form teams, and assign captains who will lead the charge to victory.
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center font-bold text-sky-700 text-lg">03</div>
-              <h3 className="text-lg font-semibold">Compete & Win</h3>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Log workouts, upload proof, and watch the leaderboard update as you crush your goals.
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* STATS + quick actions */}
       <section className="max-w-5xl mx-auto px-4 py-6">
         {/* <div className="grid grid-cols-3 gap-4 text-center">
@@ -186,18 +146,18 @@ export default function Landing() {
 
         <div className="mt-4 grid sm:grid-cols-2 gap-3">
           <div className="bg-white rounded-lg p-3 shadow-sm flex items-center gap-3">
-            <div className="w-12 h-12 rounded bg-amber-100 flex items-center justify-center font-bold text-amber-700">P</div>
+            <div className="w-12 h-12 rounded bg-amber-100 flex items-center justify-center font-bold text-amber-700">J</div>
             <div>
-              <div className="text-sm font-medium">Start a private league</div>
-              <div className="text-xs text-gray-500">Invite teammates and set rules.</div>
+              <div className="text-sm font-medium">Join any league</div>
+              <div className="text-xs text-gray-500">Perfect for connecting with people.</div>
             </div>
           </div>
 
           <div className="bg-white rounded-lg p-3 shadow-sm flex items-center gap-3">
-            <div className="w-12 h-12 rounded bg-sky-100 flex items-center justify-center font-bold text-sky-700">J</div>
+            <div className="w-12 h-12 rounded bg-sky-100 flex items-center justify-center font-bold text-sky-700">P</div>
             <div>
-              <div className="text-sm font-medium">Join any league</div>
-              <div className="text-xs text-gray-500">Perfect for connecting with people.</div>
+            <div className="text-sm font-medium">Start a private league</div>
+            <div className="text-xs text-gray-500">Invite teammates and set rules.</div>
             </div>
           </div>
         </div>
