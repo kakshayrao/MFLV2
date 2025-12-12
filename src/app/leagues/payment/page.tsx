@@ -4,63 +4,173 @@ import { useState, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Script from "next/script";
+import { useSession } from "next-auth/react";
+
+type Pricing = {
+  base_price: number;
+  platform_fee: number;
+  gst_percentage: number;
+};
 
 function PaymentContent() {
   const router = useRouter();
+  const { data: session } = useSession();
   const searchParams = useSearchParams();
   const leagueId = searchParams.get("leagueId");
   const leagueName = searchParams.get("name") || "Your League";
 
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "upi" | "netbanking">("card");
+  const [pricing, setPricing] = useState<Pricing | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvv, setCardCvv] = useState("");
-  const [cardName, setCardName] = useState("");
-  const [upiId, setUpiId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [gatewayReady, setGatewayReady] = useState(false);
 
-  // Pricing
-  const baseFee = 499;
-  const serviceCharge = 99;
-  const subtotal = baseFee + serviceCharge;
-  const gst = subtotal * 0.18;
-  const total = subtotal + gst;
+  useEffect(() => {
+    // Fetch pricing
+    const fetchPricing = async () => {
+      try {
+        const res = await fetch("/api/leagues/pricing");
+        if (!res.ok) throw new Error("Failed to fetch pricing");
+        const { pricing } = await res.json();
+        setPricing(pricing);
+      } catch (err: any) {
+        setError(err.message || "Failed to load pricing");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const formatCardNumber = (value: string) => {
-    const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
-    const matches = v.match(/\d{4,16}/g);
-    const match = (matches && matches[0]) || "";
-    const parts = [];
-    for (let i = 0, len = match.length; i < len; i += 4) {
-      parts.push(match.substring(i, i + 4));
-    }
-    return parts.length ? parts.join(" ") : value;
-  };
+    fetchPricing();
+  }, []);
 
-  const formatExpiry = (value: string) => {
-    const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
-    if (v.length >= 2) {
-      return v.substring(0, 2) + "/" + v.substring(2, 4);
-    }
-    return v;
+  // Detect Razorpay script readiness
+  useEffect(() => {
+    const checkRazorpay = () => {
+      if (typeof window !== "undefined" && (window as any).Razorpay) {
+        setGatewayReady(true);
+      }
+    };
+    const interval = setInterval(checkRazorpay, 300);
+    checkRazorpay();
+    return () => clearInterval(interval);
+  }, []);
+
+  const calculateTotal = () => {
+    if (!pricing) return 0;
+    const subtotal = pricing.base_price + pricing.platform_fee;
+    const gst = subtotal * (pricing.gst_percentage / 100);
+    return subtotal + gst;
   };
 
   const handlePayment = async () => {
+    if (!leagueId || !pricing) {
+      setError("Missing league information. Please go back and retry.");
+      return;
+    }
+
     setProcessing(true);
+    setError(null);
 
-    // Simulate payment processing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      // Create order
+      const orderRes = await fetch("/api/payments/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leagueId }),
+      });
 
-    // Redirect to league management page
-    if (leagueId) {
-      router.push(`/leagues/${leagueId}/edit?success=true`);
-    } else {
-      router.push("/leagues?success=true");
+      if (!orderRes.ok) {
+        const errorData = await orderRes.json();
+        throw new Error(errorData.error || "Failed to create order");
+      }
+
+      const { orderId: newOrderId, amount, keyId } = await orderRes.json();
+
+      // Open Razorpay
+      if (typeof window !== "undefined" && (window as any).Razorpay) {
+        const options = {
+          key: keyId,
+          amount: amount,
+          currency: "INR",
+          name: "My Fitness League",
+          description: `Payment for ${leagueName}`,
+          order_id: newOrderId,
+          handler: async (response: any) => {
+            try {
+              // Verify payment
+              const verifyRes = await fetch("/api/payments/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  orderId: newOrderId,
+                  paymentId: response.razorpay_payment_id,
+                  signature: response.razorpay_signature,
+                }),
+              });
+
+              if (!verifyRes.ok) {
+                throw new Error("Payment verification failed");
+              }
+
+              // Success
+              router.push(`/leagues/${leagueId}/edit?success=true&payment=completed`);
+            } catch (err: any) {
+              setError(err.message || "Payment verification failed");
+              setProcessing(false);
+            }
+          },
+          prefill: {
+            email: session?.user?.email || "",
+          },
+          theme: {
+            color: "#0B365F",
+          },
+        };
+
+        const razorpay = new (window as any).Razorpay(options);
+        razorpay.open();
+      } else {
+        throw new Error("Payment gateway failed to load. Please refresh the page.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Payment setup failed");
+      setProcessing(false);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 rounded-full border-4 border-gray-300 border-t-gray-900 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading payment details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!pricing) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error || "Failed to load payment details"}</p>
+          <Link href={`/leagues/create`}>
+            <Button>Back to Create League</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const subtotal = pricing.base_price + pricing.platform_fee;
+  const gst = subtotal * (pricing.gst_percentage / 100);
+  const total = calculateTotal();
+
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <>
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" onLoad={() => setGatewayReady(true)} onError={() => setError("Failed to load payment gateway script")}/>
+      <div className="min-h-screen bg-gray-50 py-12 px-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-semibold text-gray-900">Complete Payment</h1>
@@ -69,189 +179,69 @@ function PaymentContent() {
             </p>
           </div>
 
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+              {error}
+            </div>
+          )}
+
           <div className="grid md:grid-cols-3 gap-6">
-            {/* Payment Form */}
+            {/* Payment Info */}
             <div className="md:col-span-2">
               <div className="bg-white rounded-lg border border-gray-200 p-6">
-                {/* Payment Method Selection */}
-                <div className="mb-6">
-                  <h2 className="text-sm font-medium text-gray-700 mb-3">Payment Method</h2>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod("card")}
-                      className={`p-3 border rounded-lg text-sm font-medium ${
-                        paymentMethod === "card"
-                          ? "border-black bg-gray-50"
-                          : "border-gray-200"
-                      }`}
-                    >
-                      Card
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod("upi")}
-                      className={`p-3 border rounded-lg text-sm font-medium ${
-                        paymentMethod === "upi"
-                          ? "border-black bg-gray-50"
-                          : "border-gray-200"
-                      }`}
-                    >
-                      UPI
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod("netbanking")}
-                      className={`p-3 border rounded-lg text-sm font-medium ${
-                        paymentMethod === "netbanking"
-                          ? "border-black bg-gray-50"
-                          : "border-gray-200"
-                      }`}
-                    >
-                      Net Banking
-                    </button>
-                  </div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Method</h2>
+                <p className="text-gray-600 text-sm mb-6">
+                  Click below to proceed to secure Razorpay payment gateway. You'll be able to pay using:
+                </p>
+                <ul className="space-y-2 text-sm text-gray-600 mb-6 ml-4">
+                  <li>✓ Credit/Debit Cards (Visa, Mastercard, Amex)</li>
+                  <li>✓ UPI (Google Pay, PhonePe, Paytm)</li>
+                  <li>✓ Net Banking</li>
+                  <li>✓ Wallets (Paytm, Amazon Pay)</li>
+                </ul>
+
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> You will be redirected to Razorpay's secure payment gateway.
+                  </p>
                 </div>
 
-                {/* Card Payment Form */}
-                {paymentMethod === "card" && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Card Number
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="1234 5678 9012 3456"
-                        maxLength={19}
-                        value={cardNumber}
-                        onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Cardholder Name
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="John Doe"
-                        value={cardName}
-                        onChange={(e) => setCardName(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Expiry Date
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="MM/YY"
-                          maxLength={5}
-                          value={cardExpiry}
-                          onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
+                <Button
+                  onClick={handlePayment}
+                  disabled={processing || !gatewayReady || !leagueId}
+                  className="w-full bg-[#0B365F] text-white py-3 text-base font-medium rounded-lg hover:bg-[#082444] disabled:opacity-50"
+                >
+                  {processing ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
                         />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          CVV
-                        </label>
-                        <input
-                          type="password"
-                          placeholder="123"
-                          maxLength={4}
-                          value={cardCvv}
-                          onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, ""))}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         />
-                      </div>
-                    </div>
-                  </div>
-                )}
+                      </svg>
+                      Setting up payment...
+                    </span>
+                  ) : (
+                    gatewayReady ? `Proceed to Payment - ₹${total.toFixed(2)}` : "Initializing payment gateway..."
+                  )}
+                </Button>
 
-                {/* UPI Payment Form */}
-                {paymentMethod === "upi" && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        UPI ID
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="yourname@upi"
-                        value={upiId}
-                        onChange={(e) => setUpiId(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none"
-                      />
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-lg text-center">
-                      <p className="text-sm text-gray-600 mb-2">Or scan QR code</p>
-                      <div className="w-32 h-32 bg-gray-200 mx-auto rounded-lg flex items-center justify-center">
-                        <span className="text-xs text-gray-500">QR Code</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Net Banking Form */}
-                {paymentMethod === "netbanking" && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Bank
-                      </label>
-                      <select className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none">
-                        <option value="">Select your bank</option>
-                        <option value="sbi">State Bank of India</option>
-                        <option value="hdfc">HDFC Bank</option>
-                        <option value="icici">ICICI Bank</option>
-                        <option value="axis">Axis Bank</option>
-                        <option value="kotak">Kotak Mahindra Bank</option>
-                        <option value="yes">Yes Bank</option>
-                      </select>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      You will be redirected to your bank's website to complete the payment.
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <Button
-                    onClick={handlePayment}
-                    disabled={processing}
-                    className="w-full bg-black text-white py-3"
-                  >
-                    {processing ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                            fill="none"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                        Processing...
-                      </span>
-                    ) : (
-                      `Pay ₹${total.toFixed(2)}`
-                    )}
-                  </Button>
-                  <p className="text-xs text-gray-500 text-center mt-3">
-                    This is a demo payment. No real transaction will occur.
-                  </p>
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <Link href={`/leagues`}>
+                    <Button variant="outline" className="w-full">
+                      Cancel
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -264,40 +254,41 @@ function PaymentContent() {
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">League Creation Fee</span>
-                    <span className="text-gray-900">₹{baseFee.toFixed(2)}</span>
+                    <span className="text-gray-900">₹{pricing.base_price.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Service Charge</span>
-                    <span className="text-gray-900">₹{serviceCharge.toFixed(2)}</span>
+                    <span className="text-gray-600">Platform Fee</span>
+                    <span className="text-gray-900">₹{pricing.platform_fee.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">GST (18%)</span>
+                    <span className="text-gray-600">GST ({pricing.gst_percentage}%)</span>
                     <span className="text-gray-900">₹{gst.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between border-t border-gray-200 pt-3 font-semibold">
-                    <span className="text-gray-900">Total</span>
-                    <span className="text-gray-900">₹{total.toFixed(2)}</span>
+                    <span className="text-gray-900">Total Amount</span>
+                    <span className="text-[#E9573F] text-lg">₹{total.toFixed(2)}</span>
                   </div>
                 </div>
 
                 <div className="mt-6 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-600">
-                    <strong>League:</strong> {decodeURIComponent(leagueName)}
+                  <p className="text-xs text-gray-600 mb-2">
+                    <strong>League:</strong>
                   </p>
+                  <p className="text-xs font-medium text-gray-900 break-words">{decodeURIComponent(leagueName)}</p>
                 </div>
 
                 <div className="mt-4 flex items-center gap-2 text-xs text-gray-500">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  Secure payment
+                  Secure Razorpay payment
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    
+    </>
   );
 }
 
