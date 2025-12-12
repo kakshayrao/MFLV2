@@ -47,6 +47,17 @@ This document provides a comprehensive overview of all database tables in the MF
 | modified_by | UUID | FK → users(user_id) | Last modifier |
 | modified_date | TIMESTAMPTZ | DEFAULT NOW() | Last modification timestamp |
 
+**Note:** This table does NOT have the following fields (which are referenced in code but don't exist):
+- `host_id`
+- `status`
+- `is_exclusive`
+- `is_public`
+- `num_teams`
+- `team_size`
+- `rest_days`
+- `stripe_product_id`
+- `league_code`
+
 ### leaguemembers
 **Purpose:** Links users to leagues and their teams within those leagues
 
