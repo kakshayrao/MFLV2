@@ -31,24 +31,16 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify user is member of league
-    const userRole = await getUserRoleInLeague(session.user.id, id);
-    if (!userRole) {
-      return NextResponse.json(
-        { error: 'You are not a member of this league' },
-        { status: 403 }
-      );
+    // Return roles for the current user in THIS league (league-scoped)
+    const rolesForUser = await getUserRoleInLeague(session.user.id, id);
+    if (!rolesForUser) {
+      return NextResponse.json({ error: 'You are not a member of this league' }, { status: 403 });
     }
 
-    // Get all available roles
-    const roles = await getAllRoles();
-    return NextResponse.json({ data: roles, success: true });
+    return NextResponse.json({ roles: Array.isArray(rolesForUser) ? rolesForUser : [rolesForUser] });
   } catch (error) {
     console.error('Error fetching roles:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch roles' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
   }
 }
 
