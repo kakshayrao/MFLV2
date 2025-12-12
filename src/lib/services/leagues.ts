@@ -10,18 +10,10 @@ export interface LeagueInput {
   league_name: string;
   start_date: string; // YYYY-MM-DD
   end_date: string;   // YYYY-MM-DD
-  is_exclusive?: boolean;
-  is_public?: boolean;
-  num_teams?: number;
-  team_size?: number;
-  rest_days?: number;
-  stripe_product_id?: string;
 }
 
 export interface League extends LeagueInput {
   league_id: string;
-  host_id: string;
-  status: 'draft' | 'launched' | 'active' | 'completed';
   is_active: boolean;
   created_by: string;
   created_date: string;
@@ -39,34 +31,12 @@ export async function createLeague(userId: string, data: LeagueInput): Promise<L
   try {
     const supabase = getSupabase();
     
-    // Generate a unique league code (6 characters: ABC123)
-    const generateLeagueCode = () => {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let code = '';
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return code;
-    };
-    
-    const leagueCode = generateLeagueCode();
-    
     const { data: league, error } = await supabase
       .from('leagues')
       .insert({
         league_name: data.league_name,
         start_date: data.start_date,
         end_date: data.end_date,
-        is_exclusive: data.is_exclusive ?? false,
-        is_public: data.is_public ?? true,
-        num_teams: data.num_teams,
-        team_size: data.team_size,
-        rest_days: data.rest_days ?? 0,
-        stripe_product_id: data.stripe_product_id,
-        league_code: leagueCode,
-        status: 'draft',
-        is_active: true,
-        host_id: userId,
         created_by: userId,
       })
       .select()
@@ -77,9 +47,39 @@ export async function createLeague(userId: string, data: LeagueInput): Promise<L
       return null;
     }
 
-    // Assign user as host in assignedrolesforleague
+    // Create league membership for the creator
     if (league) {
-      await assignRoleToUser(userId, league.league_id, 'host', userId);
+      const { error: memberError } = await supabase
+        .from('leaguemembers')
+        .insert({
+          user_id: userId,
+          league_id: league.league_id,
+          created_by: userId,
+        });
+
+      if (memberError) {
+        console.error('Error creating league membership:', memberError);
+      }
+
+      // Assign user as host in assignedrolesforleague
+      const { data: hostRole, error: roleError } = await supabase
+        .from('roles')
+        .select('role_id')
+        .eq('role_name', 'host')
+        .single();
+
+      if (roleError || !hostRole) {
+        console.error('Error fetching host role:', roleError);
+      } else {
+        await supabase
+          .from('assignedrolesforleague')
+          .insert({
+            league_id: league.league_id,
+            user_id: userId,
+            role_id: hostRole.role_id,
+            created_by: userId,
+          });
+      }
     }
 
     return league as League;

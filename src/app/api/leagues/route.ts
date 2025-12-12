@@ -12,12 +12,6 @@ const createLeagueSchema = z.object({
   league_name: z.string().min(1, 'League name required'),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
-  is_exclusive: z.boolean().optional(),
-  is_public: z.boolean().optional(),
-  num_teams: z.number().int().positive().optional(),
-  team_size: z.number().int().positive().optional(),
-  rest_days: z.number().int().min(0).optional(),
-  stripe_product_id: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
