@@ -299,34 +299,6 @@ function LeaguesList({ leagues, loading }: { leagues: League[]; loading: boolean
 }
 
 /* ---------------------------
-  NEW: QUICK ACTIONS container
-  (placed right after Hero in the page)
-   --------------------------- */
-function QuickActions() {
-  const actions = [
-    { label: "Log Workout", icon: "💪"},
-    { label: "Join League", icon: "🏆"},
-    { label: "Create League", icon: "✨" },
-    { label: "Stay Motivated", icon: "🏋️‍♂️"},
-  ];
-
-  return (
-    <section className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 mt-4">
-      {actions.map((a, i) => (
-          <div
-          key={i}
-            className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md border border-gray-100 text-center transition-all cursor-pointer flex flex-col items-center justify-center"
-          aria-label={a.label}
-          >
-            <div className="text-3xl mb-2">{a.icon}</div>
-            <div className="text-sm font-medium text-gray-700">{a.label}</div>
-          </div>
-      ))}
-    </section>
-  );
-}
-
-/* ---------------------------
    Main Page
    --------------------------- */
 export default function DashboardPage() {
@@ -357,9 +329,6 @@ export default function DashboardPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* HERO */}
         <Hero userName={session?.user?.name} stats={data?.stats ?? null} loading={loading} onRefetch={refetch} />
-
-        {/* QUICK ACTIONS (inserted after the hero as requested) */}
-        <QuickActions />
 
         {error && (
           <div role="alert" aria-live="assertive" className="rounded-lg p-4 mb-6 bg-white border border-red-100">
