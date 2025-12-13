@@ -101,68 +101,31 @@ export default function Landing() {
         </div>
       </header>
       <section className="max-w-5xl mx-auto px-4 py-10">
-  <h2 className="text-xl font-semibold mb-4">What you can do with MFL</h2>
+        <h2 className="text-xl font-semibold mb-4">What you can do with MFL</h2>
 
-  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-    <div className="p-4 bg-white rounded-xl shadow-sm border">
-      <div className="text-3xl mb-2">🏆</div>
-      <div className="text-sm font-medium">Compete</div>
-      <p className="text-xs text-gray-500">Join weekly or seasonal leagues.</p>
-    </div>
-
-    <div className="p-4 bg-white rounded-xl shadow-sm border">
-      <div className="text-3xl mb-2">💪</div>
-      <div className="text-sm font-medium">Track</div>
-      <p className="text-xs text-gray-500">Log your daily workouts.</p>
-    </div>
-
-    <div className="p-4 bg-white rounded-xl shadow-sm border">
-      <div className="text-3xl mb-2">🔥</div>
-      <div className="text-sm font-medium">Stay Motivated</div>
-      <p className="text-xs text-gray-500">Streaks & progress bars.</p>
-    </div>
-
-    <div className="p-4 bg-white rounded-xl shadow-sm border">
-      <div className="text-3xl mb-2">👥</div>
-      <div className="text-sm font-medium">Connect</div>
-      <p className="text-xs text-gray-500">Fitness with friends & coworkers.</p>
-    </div>
-  </div>
-</section>
-
-      {/* HOW IT WORKS - Three Steps */}
-      <section className="max-w-5xl mx-auto px-4 py-10">
-        <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8">Get Started in Three Simple Steps</h2>
-        
-        <div className="grid sm:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-700 text-lg">01</div>
-              <h3 className="text-lg font-semibold">Create a League</h3>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Set up your fitness challenge with custom rules, duration, and scoring that fits your group's goals.
-            </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="text-3xl mb-2">🏆</div>
+            <div className="text-sm font-medium">Compete</div>
+            <p className="text-xs text-gray-500">Join weekly or seasonal leagues.</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center font-bold text-rose-700 text-lg">02</div>
-              <h3 className="text-lg font-semibold">Build Your Team</h3>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Invite members, form teams, and assign captains who will lead the charge to victory.
-            </p>
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="text-3xl mb-2">💪</div>
+            <div className="text-sm font-medium">Track</div>
+            <p className="text-xs text-gray-500">Log your daily workouts.</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center font-bold text-sky-700 text-lg">03</div>
-              <h3 className="text-lg font-semibold">Compete & Win</h3>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Log workouts, upload proof, and watch the leaderboard update as you crush your goals.
-            </p>
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="text-3xl mb-2">🔥</div>
+            <div className="text-sm font-medium">Stay Motivated</div>
+            <p className="text-xs text-gray-500">Streaks & progress bars.</p>
+          </div>
+
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="text-3xl mb-2">👥</div>
+            <div className="text-sm font-medium">Connect</div>
+            <p className="text-xs text-gray-500">Fitness with friends & coworkers.</p>
           </div>
         </div>
       </section>

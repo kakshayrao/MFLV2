@@ -307,7 +307,7 @@ function QuickActions() {
     { label: "Log Workout", icon: "💪"},
     { label: "Join League", icon: "🏆"},
     { label: "Create League", icon: "✨" },
-    { label: "Invite Friends", icon: "👥"},
+    { label: "Stay Motivated", icon: "🏋️‍♂️"},
   ];
 
   return (
