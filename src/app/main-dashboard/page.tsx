@@ -105,7 +105,7 @@ function useDashboardData() {
 }
 
 /* ---------------------------
-  UI Subcomponents
+   UI Subcomponents
    --------------------------- */
 
 function Hero({
@@ -313,14 +313,14 @@ function QuickActions() {
   return (
     <section className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 mt-4">
       {actions.map((a, i) => (
-        <div
+          <div
           key={i}
-          className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md border border-gray-100 text-center transition-all cursor-pointer flex flex-col items-center justify-center"
+            className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md border border-gray-100 text-center transition-all cursor-pointer flex flex-col items-center justify-center"
           aria-label={a.label}
-        >
-          <div className="text-3xl mb-2">{a.icon}</div>
-          <div className="text-sm font-medium text-gray-700">{a.label}</div>
-        </div>
+          >
+            <div className="text-3xl mb-2">{a.icon}</div>
+            <div className="text-sm font-medium text-gray-700">{a.label}</div>
+          </div>
       ))}
     </section>
   );
@@ -352,7 +352,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--color-background)" }}>
-      <TopNav user={{ id: userId, firstName: userFirstName }} onSignOut={() => signOut({ callbackUrl: '/landing-page' })} />
+      <TopNav user={{ id: userId, firstName: userFirstName }} onSignOut={() => signOut({ callbackUrl: '/' })} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* HERO */}

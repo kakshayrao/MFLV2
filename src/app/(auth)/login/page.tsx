@@ -190,7 +190,7 @@ export default function AuthPage() {
           {/* Back Button */}
           <div className="mb-4">
             <Link 
-              href="/landing-page"
+              href="/"
               className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
             >
               ← Back
