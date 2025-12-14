@@ -10,8 +10,7 @@ import { z } from 'zod';
 
 const createLeagueSchema = z.object({
   league_name: z.string().min(1, 'League name required'),
-  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
-  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  duration_days: z.number().int().positive().min(1),
 });
 
 export async function GET(req: NextRequest) {
@@ -42,17 +41,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const validated = createLeagueSchema.parse(body);
 
-    // Validate dates
-    const startDate = new Date(validated.start_date);
-    const endDate = new Date(validated.end_date);
-    if (endDate <= startDate) {
-      return NextResponse.json(
-        { error: 'End date must be after start date' },
-        { status: 400 }
-      );
-    }
-
-    const league = await createLeague(session.user.id, validated);
+    // Don't set start_date and end_date yet - user will choose after payment
+    const league = await createLeague(session.user.id, {
+      league_name: validated.league_name,
+      start_date: null, // Will be set after payment
+      end_date: null,   // Will be calculated after payment
+      duration_days: validated.duration_days,
+    });
     if (!league) {
       return NextResponse.json(
         { error: 'Failed to create league' },

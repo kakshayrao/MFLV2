@@ -8,8 +8,15 @@ import { getSupabase } from '@/lib/supabase/client';
 
 export interface LeagueInput {
   league_name: string;
-  start_date: string; // YYYY-MM-DD
-  end_date: string;   // YYYY-MM-DD
+  start_date: string | null; // YYYY-MM-DD or null if not set yet
+  end_date: string | null;   // YYYY-MM-DD or null if not set yet
+  duration_days?: number;
+  // Optional fields that will be added by migration
+  is_public?: boolean;
+  is_exclusive?: boolean;
+  num_teams?: number;
+  team_size?: number;
+  rest_days?: number;
 }
 
 export interface League extends LeagueInput {
@@ -37,6 +44,8 @@ export async function createLeague(userId: string, data: LeagueInput): Promise<L
         league_name: data.league_name,
         start_date: data.start_date,
         end_date: data.end_date,
+        duration_days: data.duration_days || null,
+        is_active: false, // Set to false initially, will be activated after payment
         created_by: userId,
       })
       .select()
@@ -165,9 +174,14 @@ export async function updateLeague(
       return null;
     }
 
-    // Prevent updates after league launch
-    if (league.status !== 'draft') {
-      console.error('Cannot update league after launch');
+    // Allow date updates even if league is active (for setting dates after payment)
+    // But prevent other updates after league is active
+    const hasDateUpdate = data.start_date !== undefined || data.end_date !== undefined;
+    const hasOtherUpdates = Object.keys(data).some(key => key !== 'start_date' && key !== 'end_date');
+    
+    // Allow date updates anytime, but other updates only when league is not active
+    if (hasOtherUpdates && league.is_active) {
+      console.error('Cannot update league details after league is active');
       return null;
     }
 
@@ -211,7 +225,7 @@ export async function deleteLeague(leagueId: string, userId: string): Promise<bo
       return false;
     }
 
-    if (league.status !== 'draft') {
+    if (league.is_active) {
       console.error('Cannot delete league after launch');
       return false;
     }
@@ -245,10 +259,16 @@ export async function launchLeague(leagueId: string, userId: string): Promise<Le
       return null;
     }
 
+    // Validate that dates are set before launching
+    if (!league.start_date || !league.end_date) {
+      console.error('Cannot launch league without start and end dates');
+      return null;
+    }
+
     const { data, error } = await getSupabase()
       .from('leagues')
       .update({
-        status: 'launched',
+        is_active: true,
         modified_by: userId,
         modified_date: new Date().toISOString(),
       })

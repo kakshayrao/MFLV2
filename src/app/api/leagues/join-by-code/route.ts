@@ -22,12 +22,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find league by code
+    // Find league by code (league_code doesn't exist in schema, so we'll use league_id for now)
+    // TODO: Implement league code system or use league_id directly
+    // For now, treat the code as a league_id
     const supabase = createServerClient();
     const { data: league, error: leagueError } = await supabase
       .from('leagues')
       .select('*')
-      .eq('league_code', code.trim().toUpperCase())
+      .eq('league_id', code.trim())
       .single();
 
     if (leagueError || !league) {
@@ -37,10 +39,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if league is open for joining
-    if (league.status === 'completed') {
+    // Check if league is active (not completed/ended)
+    if (!league.is_active) {
       return NextResponse.json(
-        { error: 'This league has ended' },
+        { error: 'This league is not active' },
         { status: 400 }
       );
     }

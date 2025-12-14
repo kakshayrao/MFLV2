@@ -113,8 +113,15 @@ function PaymentContent() {
                 throw new Error("Payment verification failed");
               }
 
-              // Success
-              router.push(`/leagues/${leagueId}/edit?success=true&payment=completed`);
+              const verifyData = await verifyRes.json();
+              
+              // Redirect to set dates page after payment
+              if (verifyData.redirectUrl) {
+                router.push(verifyData.redirectUrl);
+              } else {
+                // Fallback to edit page
+                router.push(`/leagues/${leagueId}/edit?success=true&payment=completed`);
+              }
             } catch (err: any) {
               setError(err.message || "Payment verification failed");
               setProcessing(false);

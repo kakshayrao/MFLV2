@@ -8,22 +8,22 @@ import { Navbar } from "@/components/layout/navbar";
 interface League {
   league_id: string;
   league_name: string;
-  start_date: string;
-  end_date: string;
-  is_public: boolean;
-  is_exclusive: boolean;
-  num_teams: number;
-  team_size: number;
-  rest_days: number;
-  status: "draft" | "launched" | "active" | "completed";
-  host_id: string;
+  start_date: string | null;
+  end_date: string | null;
+  duration_days: number | null;
+  is_public?: boolean;
+  is_exclusive?: boolean;
+  num_teams?: number;
+  team_size?: number;
+  rest_days?: number;
+  is_active: boolean;
 }
 
 interface Team {
   team_id: string;
   team_name: string;
-  color: string;
-  member_count: number;
+  color?: string; // Will be added by migration
+  member_count?: number; // Calculated, not stored
 }
 
 type Tab = "general" | "teams" | "members" | "settings" | "danger";
@@ -43,17 +43,19 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const [league, setLeague] = useState<League | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
 
-  // Form state
+  // Form state - only include fields that exist in schema
   const [formData, setFormData] = useState({
     league_name: "",
     start_date: "",
     end_date: "",
-    is_public: true,
-    is_exclusive: false,
-    num_teams: 4,
-    team_size: 10,
-    rest_days: 2,
+    is_public: true, // Will be added by migration
+    is_exclusive: false, // Will be added by migration
+    num_teams: 4, // Will be added by migration
+    team_size: 10, // Will be added by migration
+    rest_days: 2, // Will be added by migration
   });
+
+  const [tempStartDate, setTempStartDate] = useState("");
 
   // New team form
   const [newTeamName, setNewTeamName] = useState("");
@@ -71,6 +73,20 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
     }
   }, [success]);
 
+  // Auto-calculate end date when start date changes
+  useEffect(() => {
+    if (tempStartDate && league?.duration_days) {
+      const start = new Date(tempStartDate);
+      const end = new Date(start);
+      end.setDate(end.getDate() + league.duration_days - 1);
+      setFormData(prev => ({
+        ...prev,
+        start_date: tempStartDate,
+        end_date: end.toISOString().split('T')[0],
+      }));
+    }
+  }, [tempStartDate, league?.duration_days]);
+
   const fetchLeague = async () => {
     try {
       const res = await fetch(`/api/leagues/${id}`);
@@ -79,14 +95,17 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
         setLeague(data.data);
         setFormData({
           league_name: data.data.league_name,
-          start_date: data.data.start_date,
-          end_date: data.data.end_date,
-          is_public: data.data.is_public,
-          is_exclusive: data.data.is_exclusive,
-          num_teams: data.data.num_teams || 4,
-          team_size: data.data.team_size || 10,
-          rest_days: data.data.rest_days || 2,
+          start_date: data.data.start_date || "",
+          end_date: data.data.end_date || "",
+          is_public: data.data.is_public ?? true,
+          is_exclusive: data.data.is_exclusive ?? false,
+          num_teams: data.data.num_teams ?? 4,
+          team_size: data.data.team_size ?? 10,
+          rest_days: data.data.rest_days ?? 2,
         });
+        if (data.data.start_date) {
+          setTempStartDate(data.data.start_date);
+        }
       }
     } catch (err) {
       setError("Failed to load league");
@@ -107,7 +126,7 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   };
 
   const handleSave = async () => {
-    if (league?.status !== "draft") {
+    if (league?.is_active) {
       setError("Cannot edit league after it has been launched");
       return;
     }
@@ -138,6 +157,12 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   };
 
   const handleLaunch = async () => {
+    // Validate that dates are set
+    if (!formData.start_date || !formData.end_date) {
+      setError("Please set the league start and end dates before launching.");
+      return;
+    }
+
     if (!confirm("Are you sure you want to launch this league? You won't be able to edit most settings after launch.")) {
       return;
     }
@@ -199,8 +224,8 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
       {
         team_id: `temp-${Date.now()}`,
         team_name: newTeamName,
-        color: newTeamColor,
-        member_count: 0,
+        color: newTeamColor, // Will be saved to database after migration
+        member_count: 0, // Calculated, not stored
       },
     ]);
     setNewTeamName("");
@@ -242,7 +267,13 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
     );
   }
 
-  const isDraft = league.status === "draft";
+  const isDraft = !league.is_active;
+  const datesNotSet = !league.start_date || !league.end_date;
+  const getMinDate = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today.toISOString().split('T')[0];
+  };
 
   return (
     <>
@@ -256,33 +287,126 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
               <div className="flex items-center gap-2 mt-1">
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                    league.status === "draft"
+                    !league.is_active
                       ? "bg-yellow-100 text-yellow-800"
-                      : league.status === "launched"
-                      ? "bg-blue-100 text-blue-800"
-                      : league.status === "active"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
+                      : "bg-green-100 text-green-800"
                   }`}
                 >
-                  {league.status ? league.status.charAt(0).toUpperCase() + league.status.slice(1) : "Unknown"}
+                  {!league.is_active ? "Draft" : "Active"}
                 </span>
-                <span className="text-sm text-gray-500">
-                  {league.start_date} - {league.end_date}
-                </span>
+                {league.start_date && league.end_date ? (
+                  <span className="text-sm text-gray-500">
+                    {league.start_date} - {league.end_date}
+                  </span>
+                ) : (
+                  <span className="text-sm text-orange-600 font-medium">
+                    Dates not set
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={copyInviteLink}>
-                Copy Invite Link
-              </Button>
+              {!isDraft && (
+                <Button variant="outline" onClick={copyInviteLink}>
+                  Copy Invite Link
+                </Button>
+              )}
               {isDraft && (
-                <Button onClick={handleLaunch} className="bg-green-600 text-white">
-                  Launch League
+                <Button 
+                  onClick={handleLaunch} 
+                  disabled={datesNotSet || saving}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg hover:shadow-green-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-base px-6 py-2.5 font-semibold"
+                >
+                  {saving ? "Launching..." : "🚀 Launch League"}
                 </Button>
               )}
             </div>
           </div>
+
+          {/* Prominent Launch Banner if dates not set */}
+          {isDraft && datesNotSet && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-lg p-6 mb-6">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                    <span className="text-2xl">📅</span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-amber-900 mb-2">
+                    Set League Dates to Launch
+                  </h3>
+                  <p className="text-sm text-amber-700 mb-4">
+                    Before launching your league, please set the start and end dates. The end date will be automatically calculated based on your selected duration ({league.duration_days} days).
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-amber-900 mb-2">
+                        League Start Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        min={getMinDate()}
+                        value={tempStartDate}
+                        onChange={(e) => setTempStartDate(e.target.value)}
+                        className="w-full border border-amber-300 rounded-lg px-4 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all duration-200 bg-white"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-amber-900 mb-2">
+                        League End Date (Auto-calculated)
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.end_date}
+                        disabled
+                        className="w-full border border-amber-300 rounded-lg px-4 py-2.5 bg-amber-50 text-amber-700 cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+                  {tempStartDate && formData.end_date && (
+                    <div className="mt-4 bg-white border border-amber-200 rounded-lg p-3">
+                      <p className="text-xs font-medium text-amber-700 mb-1">Schedule Preview</p>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-amber-600">Start:</p>
+                          <p className="font-semibold text-amber-900">
+                            {new Date(tempStartDate).toLocaleDateString('en-US', { 
+                              weekday: 'short', 
+                              month: 'short', 
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-amber-600">End:</p>
+                          <p className="font-semibold text-amber-900">
+                            {new Date(formData.end_date).toLocaleDateString('en-US', { 
+                              weekday: 'short', 
+                              month: 'short', 
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-4">
+                    <Button
+                      onClick={handleSave}
+                      disabled={!tempStartDate || saving}
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      {saving ? "Saving..." : "Save Dates"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Alerts */}
           {error && (
@@ -342,27 +466,49 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Start Date
+                      Start Date {league.duration_days && <span className="text-gray-500">(Duration: {league.duration_days} days)</span>}
                     </label>
                     <input
                       type="date"
+                      min={getMinDate()}
                       disabled={!isDraft}
-                      value={formData.start_date}
-                      onChange={(e) => updateField("start_date", e.target.value)}
+                      value={tempStartDate || formData.start_date}
+                      onChange={(e) => {
+                        setTempStartDate(e.target.value);
+                        if (league?.duration_days) {
+                          const start = new Date(e.target.value);
+                          const end = new Date(start);
+                          end.setDate(end.getDate() + league.duration_days - 1);
+                          updateField("start_date", e.target.value);
+                          updateField("end_date", end.toISOString().split('T')[0]);
+                        } else {
+                          updateField("start_date", e.target.value);
+                        }
+                      }}
                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none disabled:bg-gray-50 disabled:text-gray-500"
                     />
+                    {league.duration_days && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        End date will be auto-calculated
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      End Date
+                      End Date {league.duration_days && <span className="text-gray-500">(Auto-calculated)</span>}
                     </label>
                     <input
                       type="date"
-                      disabled={!isDraft}
+                      disabled={!isDraft || !!league.duration_days}
                       value={formData.end_date}
                       onChange={(e) => updateField("end_date", e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-black focus:ring-1 focus:ring-black outline-none disabled:bg-gray-50 disabled:text-gray-500"
                     />
+                    {league.duration_days && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Calculated from start date + {league.duration_days} days
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -469,14 +615,18 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
                         className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
                       >
                         <div className="flex items-center gap-3">
-                          <div
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: team.color }}
-                          />
+                          {team.color && (
+                            <div
+                              className="w-4 h-4 rounded-full"
+                              style={{ backgroundColor: team.color }}
+                            />
+                          )}
                           <span className="font-medium text-gray-900">{team.team_name}</span>
-                          <span className="text-sm text-gray-500">
-                            {team.member_count} members
-                          </span>
+                          {team.member_count !== undefined && (
+                            <span className="text-sm text-gray-500">
+                              {team.member_count} members
+                            </span>
+                          )}
                         </div>
                         {isDraft && (
                           <Button variant="outline" size="sm">
@@ -563,12 +713,12 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
                   <Button
                     variant="outline"
                     onClick={handleDelete}
-                    disabled={saving || league.status !== "draft"}
+                    disabled={saving || league.is_active}
                     className="border-red-300 text-red-600"
                   >
                     {saving ? "Deleting..." : "Delete this league"}
                   </Button>
-                  {league.status !== "draft" && (
+                  {league.is_active && (
                     <p className="text-xs text-red-500 mt-2">
                       Only draft leagues can be deleted.
                     </p>

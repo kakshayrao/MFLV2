@@ -47,6 +47,8 @@ src/
 | Submit Workouts | ✅* | ✅* | ✅ | ✅ |
 | View Personal Dashboard | ✅ | ✅ | ✅ | ✅ |
 
+*There is also an Admin Role for System Management
+
 *Only if also assigned as Player in the league.
 
 ### Multi-Role Support

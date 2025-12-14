@@ -9,15 +9,15 @@ import { Navbar } from "@/components/layout/navbar";
 interface League {
   league_id: string;
   league_name: string;
-  start_date: string;
-  end_date: string;
-  is_public: boolean;
-  is_exclusive: boolean;
-  num_teams: number;
-  team_size: number;
-  rest_days: number;
-  status: "draft" | "launched" | "active" | "completed";
-  host_id: string;
+  start_date: string | null;
+  end_date: string | null;
+  is_active: boolean;
+  is_public?: boolean | null;
+  is_exclusive?: boolean | null;
+  num_teams?: number | null;
+  team_size?: number | null;
+  rest_days?: number | null;
+  duration_days?: number | null;
 }
 
 export default function LeagueDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -66,7 +66,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
   }, [id]);
 
   const getDaysRemaining = () => {
-    if (!league || !mounted) return 0;
+    if (!league || !mounted || !league.end_date) return 0;
     const end = new Date(league.end_date);
     const now = new Date();
     const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -74,7 +74,9 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const getTotalDays = () => {
-    if (!league || !mounted) return 0;
+    if (!league || !mounted || !league.start_date || !league.end_date) {
+      return league?.duration_days || 0;
+    }
     const start = new Date(league.start_date);
     const end = new Date(league.end_date);
     return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -117,21 +119,21 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
                 <h1 className="text-2xl font-semibold text-gray-900">{league.league_name}</h1>
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                    league.status === "draft"
+                    !league.is_active
                       ? "bg-yellow-100 text-yellow-800"
-                      : league.status === "launched"
-                      ? "bg-blue-100 text-blue-800"
-                      : league.status === "active"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
+                      : "bg-green-100 text-green-800"
                   }`}
                 >
-                  {league?.status ? league.status.charAt(0).toUpperCase() + league.status.slice(1) : "Unknown"}
+                  {!league.is_active ? "Draft" : "Active"}
                 </span>
               </div>
-              <p className="text-sm text-gray-500">
-                {league.start_date} - {league.end_date}
-              </p>
+              {league.start_date && league.end_date ? (
+                <p className="text-sm text-gray-500">
+                  {league.start_date} - {league.end_date}
+                </p>
+              ) : (
+                <p className="text-sm text-orange-600 font-medium">Dates not set</p>
+              )}
             </div>
             {isHost && (
               <Link href={`/leagues/${id}/edit`}>
@@ -168,26 +170,34 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
               League Details
             </h2>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-gray-500">Visibility</p>
-                <p className="font-medium text-gray-900">
-                  {league.is_public ? "Public" : "Private"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Join Type</p>
-                <p className="font-medium text-gray-900">
-                  {league.is_exclusive ? "Invite Only" : "Open"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Team Size</p>
-                <p className="font-medium text-gray-900">{league.team_size || "Not set"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Rest Days</p>
-                <p className="font-medium text-gray-900">{league.rest_days} per week</p>
-              </div>
+              {league.is_public !== null && league.is_public !== undefined && (
+                <div>
+                  <p className="text-xs text-gray-500">Visibility</p>
+                  <p className="font-medium text-gray-900">
+                    {league.is_public ? "Public" : "Private"}
+                  </p>
+                </div>
+              )}
+              {league.is_exclusive !== null && league.is_exclusive !== undefined && (
+                <div>
+                  <p className="text-xs text-gray-500">Join Type</p>
+                  <p className="font-medium text-gray-900">
+                    {league.is_exclusive ? "Invite Only" : "Open"}
+                  </p>
+                </div>
+              )}
+              {league.team_size !== null && league.team_size !== undefined && (
+                <div>
+                  <p className="text-xs text-gray-500">Team Size</p>
+                  <p className="font-medium text-gray-900">{league.team_size}</p>
+                </div>
+              )}
+              {league.rest_days !== null && league.rest_days !== undefined && (
+                <div>
+                  <p className="text-xs text-gray-500">Rest Days</p>
+                  <p className="font-medium text-gray-900">{league.rest_days} per week</p>
+                </div>
+              )}
             </div>
           </div>
 

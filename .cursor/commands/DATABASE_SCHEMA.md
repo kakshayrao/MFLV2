@@ -39,22 +39,23 @@ This document provides a comprehensive overview of all database tables in the MF
 |--------|------|-------------|-------------|
 | league_id | UUID | PRIMARY KEY | Unique identifier |
 | league_name | VARCHAR | NOT NULL, UNIQUE | League display name |
-| start_date | DATE | NOT NULL | League start date |
-| end_date | DATE | NOT NULL | League end date |
-| is_active | BOOLEAN | DEFAULT true | League active status |
+| start_date | DATE | NULLABLE | League start date (set after payment) |
+| end_date | DATE | NULLABLE | League end date (calculated from start_date + duration_days) |
+| is_active | BOOLEAN | DEFAULT true | League active status (false until launched) |
+| duration_days | INTEGER | NULLABLE | Number of days for the league (selected during creation) |
+| is_public | BOOLEAN | DEFAULT true | Whether league is publicly discoverable |
+| is_exclusive | BOOLEAN | DEFAULT false | Whether league requires invite to join |
+| num_teams | INTEGER | NULLABLE | Number of teams in the league |
+| team_size | INTEGER | NULLABLE | Maximum team size |
+| rest_days | INTEGER | DEFAULT 2 | Rest days allowed per week |
 | created_by | UUID | FK → users(user_id) | League creator (Host) |
 | created_date | TIMESTAMPTZ | DEFAULT NOW() | Creation timestamp |
 | modified_by | UUID | FK → users(user_id) | Last modifier |
 | modified_date | TIMESTAMPTZ | DEFAULT NOW() | Last modification timestamp |
 
-**Note:** This table does NOT have the following fields (which are referenced in code but don't exist):
-- `host_id`
-- `status`
-- `is_exclusive`
-- `is_public`
-- `num_teams`
-- `team_size`
-- `rest_days`
+**Note:** This table does NOT have the following fields (which may be referenced in old code):
+- `host_id` (use `created_by` instead)
+- `status` (use `is_active` boolean instead)
 - `stripe_product_id`
 - `league_code`
 
@@ -72,7 +73,12 @@ This document provides a comprehensive overview of all database tables in the MF
 | modified_by | UUID | FK → users(user_id) | Last modifier |
 | modified_date | TIMESTAMPTZ | DEFAULT NOW() | Last modification timestamp |
 
-**Note:** Also has FK constraints to teamleagues for team/league combinations
+**Foreign Key Constraints:**
+- `fk_lm_user` → `users(user_id)`
+- `fk_lm_league` → `leagues(league_id)`
+- `fk_lm_team` → `teams(team_id)`
+- `fk_lm_created_by` → `users(user_id)`
+- `fk_lm_modified_by` → `users(user_id)`
 
 ### leagueinvites
 **Purpose:** Tracks pending invitations to join leagues
@@ -96,6 +102,7 @@ This document provides a comprehensive overview of all database tables in the MF
 |--------|------|-------------|-------------|
 | team_id | UUID | PRIMARY KEY | Unique identifier |
 | team_name | VARCHAR | NOT NULL, UNIQUE | Team display name |
+| color | VARCHAR | DEFAULT '#3B82F6' | Team color for UI display |
 | created_by | UUID | FK → users(user_id) | Team creator |
 | created_date | TIMESTAMPTZ | DEFAULT NOW() | Creation timestamp |
 | modified_by | UUID | FK → users(user_id) | Last modifier |
@@ -323,9 +330,21 @@ This document provides a comprehensive overview of all database tables in the MF
 - Only admins can create/update/delete
 
 ### payments
-**Purpose:** Payment records (existing table - structure to be documented)
-- Used for payment processing
-- Structure depends on existing implementation
+**Purpose:** Payment records for league creation payments
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PRIMARY KEY | Unique identifier |
+| league_id | UUID | NOT NULL, FK → leagues(league_id) | League being paid for |
+| razorpay_order_id | VARCHAR | NULLABLE | Razorpay order ID |
+| razorpay_payment_id | VARCHAR | NULLABLE | Razorpay payment ID |
+| amount | NUMERIC | NOT NULL | Payment amount |
+| status | VARCHAR | NOT NULL, DEFAULT 'pending' | Payment status (pending/completed/failed) |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() | Creation timestamp |
+| updated_at | TIMESTAMPTZ | DEFAULT NOW() | Last update timestamp |
+
+**Foreign Key Constraints:**
+- `fk_payments_league` → `leagues(league_id)`
 
 ### financial_transactions
 **Purpose:** Financial transaction records for admin tracking (broader scope than payments)
@@ -449,6 +468,8 @@ Key indexes exist on:
 1. **Initial Schema** - Core tables (users, leagues, teams, activities, challenges)
 2. **20241211000001_admin_panel_schema.sql** - Added financial_transactions, subscriptions (Note: activities and specialchallenges already exist, payments table also exists separately)
 3. **20241211000002_admin_functions.sql** - Added admin analytics functions
+4. **20241212000001_league_duration_options.sql** - Added league_duration_options table and duration_days field to leagues, made start_date/end_date nullable
+5. **20241212000002_fix_schema_issues.sql** - Schema alignment and verification (ensures all fields exist, fixes FK constraints)
 
 ---
 

@@ -5,7 +5,7 @@ import { createServerClient } from '@/lib/supabase/server';
 export type Payment = {
   id: string;
   league_id: string;
-  razorpay_order_id: string;
+  razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   amount: number;
   status: 'pending' | 'completed' | 'failed';

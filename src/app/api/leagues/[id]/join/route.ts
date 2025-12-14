@@ -24,7 +24,8 @@ export async function POST(
     }
 
     // Check if league is public or user has valid invite code (TODO: implement invite code logic)
-    if (!league.is_public) {
+    // Default to public if is_public is null (for backward compatibility)
+    if (league.is_public === false) {
       // For now, reject private leagues
       return NextResponse.json(
         { error: 'This league is private. You need an invite code.' },
@@ -32,10 +33,10 @@ export async function POST(
       );
     }
 
-    // Check if league is open for joining (not completed)
-    if (league.status === 'completed') {
+    // Check if league is active
+    if (!league.is_active) {
       return NextResponse.json(
-        { error: 'This league has ended' },
+        { error: 'This league is not active yet' },
         { status: 400 }
       );
     }

@@ -16,8 +16,8 @@ import { z } from 'zod';
 
 const updateLeagueSchema = z.object({
   league_name: z.string().optional(),
-  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   is_exclusive: z.boolean().optional(),
   is_public: z.boolean().optional(),
   num_teams: z.number().int().positive().optional(),
