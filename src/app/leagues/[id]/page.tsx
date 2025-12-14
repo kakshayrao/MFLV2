@@ -26,29 +26,47 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
   const [league, setLeague] = useState<League | null>(null);
   const [loading, setLoading] = useState(true);
   const [isHost, setIsHost] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    let isMounted = true;
+    
+    const fetchLeague = async () => {
+      try {
+        const res = await fetch(`/api/leagues/${id}`);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        
+        if (isMounted) {
+          if (data.success && data.data) {
+            setLeague(data.data);
+            // TODO: Check if current user is host
+            setIsHost(true); // For now, assume user is host
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Failed to load league:", err);
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
     fetchLeague();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
 
-  const fetchLeague = async () => {
-    try {
-      const res = await fetch(`/api/leagues/${id}`);
-      const data = await res.json();
-      if (data.success && data.data) {
-        setLeague(data.data);
-        // TODO: Check if current user is host
-        setIsHost(true); // For now, assume user is host
-      }
-    } catch (err) {
-      console.error("Failed to load league");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const getDaysRemaining = () => {
-    if (!league) return 0;
+    if (!league || !mounted) return 0;
     const end = new Date(league.end_date);
     const now = new Date();
     const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -56,7 +74,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const getTotalDays = () => {
-    if (!league) return 0;
+    if (!league || !mounted) return 0;
     const start = new Date(league.start_date);
     const end = new Date(league.end_date);
     return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -108,7 +126,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
                       : "bg-gray-100 text-gray-800"
                   }`}
                 >
-                  {league.status.charAt(0).toUpperCase() + league.status.slice(1)}
+                  {league.status ? league.status.charAt(0).toUpperCase() + league.status.slice(1) : "Unknown"}
                 </span>
               </div>
               <p className="text-sm text-gray-500">

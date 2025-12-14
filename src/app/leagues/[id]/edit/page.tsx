@@ -265,7 +265,7 @@ function EditLeaguePage({ params }: { params: Promise<{ id: string }> }) {
                       : "bg-gray-100 text-gray-800"
                   }`}
                 >
-                  {league.status.charAt(0).toUpperCase() + league.status.slice(1)}
+                  {league.status ? league.status.charAt(0).toUpperCase() + league.status.slice(1) : "Unknown"}
                 </span>
                 <span className="text-sm text-gray-500">
                   {league.start_date} - {league.end_date}
