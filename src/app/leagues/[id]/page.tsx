@@ -126,7 +126,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
                       : "bg-gray-100 text-gray-800"
                   }`}
                 >
-                  {league.status ? league.status.charAt(0).toUpperCase() + league.status.slice(1) : "Unknown"}
+                  {league?.status ? league.status.charAt(0).toUpperCase() + league.status.slice(1) : "Unknown"}
                 </span>
               </div>
               <p className="text-sm text-gray-500">
