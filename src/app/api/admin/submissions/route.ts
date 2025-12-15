@@ -25,15 +25,17 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabase()
 
     let query = supabase
-      .from('effort_entries')
+      .from('effortentry')
       .select(`
         *,
-        profiles!effort_entries_user_id_fkey (
+        users!effortentry_created_by_fkey (
           username,
           email
         ),
-        teams!effort_entries_team_id_fkey (
-          name
+        leaguemembers!effortentry_league_member_id_fkey (
+          teams (
+            team_name
+          )
         )
       `)
       .order('created_at', { ascending: false })
@@ -81,7 +83,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = getSupabase()
 
     const { data, error } = await supabase
-      .from('effort_entries')
+      .from('effortentry')
       .update({ status })
       .eq('id', id)
       .select()

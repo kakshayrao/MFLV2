@@ -10,7 +10,7 @@ import { getSupabase } from "@/lib/supabase/client";
 type TeamRow = { team_id: string; team_name: string; points: number; avg_rr: number | null };
 type PlayerRow = { user_id: string; name: string; team: string | null; points: number; avg_rr: number | null };
 
-type Challenge = { id: string; name: string; start_date: string; end_date: string };
+type Challenge = { challenge_id: string; name: string; start_date: string; end_date: string };
 type ChallengeScore = { challenge_id: string; team_id: string; score: number | null };
 
 type TeamStanding = {
@@ -144,9 +144,9 @@ export default function LeaderboardsPage() {
           const members = membersRes.data || [];
 
           const teamIds = Array.from(new Set(members.map((m: any) => String(m.team_id)).filter(Boolean)));
-          const { data: teamsMeta } = teamIds.length ? await getSupabase().from('teams').select('id, name').in('id', teamIds) : { data: [] } as { data: Array<{ id: string; name: string }> };
+          const { data: teamsMeta } = teamIds.length ? await getSupabase().from('teams').select('team_id, team_name').in('team_id', teamIds) : { data: [] } as { data: Array<{ team_id: string; team_name: string }> };
           const teamNameById = new Map<string,string>();
-          (teamsMeta || []).forEach((t)=> teamNameById.set(String(t.id), String(t.name)));
+          (teamsMeta || []).forEach((t)=> teamNameById.set(String(t.team_id), String(t.team_name)));
 
           const usersById = new Map((users || []).map((u)=> [String(u.id), u]));
           const memberByUser = new Map((members || []).map((m: any) => [String(m.user_id), m]));
@@ -254,14 +254,14 @@ export default function LeaderboardsPage() {
       const periodEnd = dayBeforeYesterday < currentPeriod.end ? dayBeforeYesterday : currentPeriod.end;
       
       // If period end is before period start, show empty standings (0 points for all)
-      const { data: allTeams } = await getSupabase().from('teams').select('id, name');
-      const teams = (allTeams || []) as Array<{ id: string; name: string }>;
+      const { data: allTeams } = await getSupabase().from('teams').select('team_id, team_name');
+      const teams = (allTeams || []) as Array<{ team_id: string; team_name: string }>;
       
       if (periodEnd < start) {
         // Show all teams with 0 points
         const emptyStandings = teams.map((team, idx) => ({
-          teamId: String(team.id),
-          teamName: String(team.name),
+          teamId: String(team.team_id),
+          teamName: String(team.team_name),
           points: 0,
           avgRR: 0,
           position: idx + 1,
@@ -276,17 +276,17 @@ export default function LeaderboardsPage() {
 
       // Fetch challenges with their end_dates and scores
       const { data: challenges } = await getSupabase()
-        .from('special_challenges')
-        .select('id, end_date');
+        .from('specialchallenges')
+        .select('challenge_id, end_date');
       
       const { data: chScores } = await getSupabase()
-        .from('special_challenge_team_scores')
+        .from('specialchallengeteamscore')
         .select('challenge_id, team_id, score');
 
       // Build a map of challenge_id -> end_date
       const challengeEndDates = new Map<string, string>();
       (challenges || []).forEach((c: any) => {
-        challengeEndDates.set(String(c.id), c.end_date || '');
+        challengeEndDates.set(String(c.challenge_id), c.end_date || '');
       });
 
       // Only include challenge bonus if the challenge's end_date falls within the selected period (up to day before yesterday)
@@ -310,7 +310,7 @@ export default function LeaderboardsPage() {
       const compute = async (s: Date, e: Date): Promise<Array<Omit<TeamStanding, 'position' | 'delta'>>> => {
         const res: Array<Omit<TeamStanding, 'position' | 'delta'>> = [];
         for (const team of teams) {
-          const tid = String(team.id);
+          const tid = String(team.team_id);
           // Fetch league_member_ids for this team, then fetch effort entries filtered by those ids
           const { data: membersForTeam } = await getSupabase().from('leaguemembers').select('league_member_id').eq('team_id', tid);
           const memberIds = (membersForTeam || []).map((m: any) => m.league_member_id).filter(Boolean);
@@ -332,13 +332,13 @@ export default function LeaderboardsPage() {
           // -------------------------
           // REPLACED SECTION (FACTOR)
           // -------------------------
-          const factor = getRosterFactor(String(team.name));
+          const factor = getRosterFactor(String(team.team_name));
           const pointsRounded = Math.round(pts * factor);
           // Add Special Challenge bonus AFTER proportional rounding (display-only rule)
           const bonus = Number(challengeBonusByTeam.get(tid) || 0);
           const finalPoints = pointsRounded + (Number.isFinite(bonus) ? bonus : 0);
           const avgRR = rrCnt > 0 ? Math.round((rrSum / rrCnt) * 100) / 100 : 0;
-          res.push({ teamId: tid, teamName: String(team.name), points: finalPoints, avgRR });
+          res.push({ teamId: tid, teamName: String(team.team_name), points: finalPoints, avgRR });
         }
         // sort by rounded (displayed) points, then RR
         res.sort((a,b)=> (b.points - a.points) || (b.avgRR - a.avgRR));
@@ -369,8 +369,8 @@ export default function LeaderboardsPage() {
       setIsLoadingRealTime(true);
       setRealTimeStandings([]);
 
-      const { data: allTeams } = await getSupabase().from('teams').select('id, name');
-      const teams = (allTeams || []) as Array<{ id: string; name: string }>;
+      const { data: allTeams } = await getSupabase().from('teams').select('team_id, team_name');
+      const teams = (allTeams || []) as Array<{ team_id: string; team_name: string }>;
 
       const results: RealTimeStanding[] = [];
 
@@ -419,7 +419,7 @@ export default function LeaderboardsPage() {
         });
 
         // Apply roster factor
-        const factor = getRosterFactor(String(team.name));
+        const factor = getRosterFactor(String(team.team_name));
         const todayPointsScaled = Math.round(todayPts * factor);
         const yesterdayPointsScaled = Math.round(yesterdayPts * factor);
 
@@ -436,7 +436,7 @@ export default function LeaderboardsPage() {
 
         results.push({
           teamId: tid,
-          teamName: String(team.name),
+          teamName: String(team.team_name),
           todayPoints: todayPointsScaled,
           yesterdayPoints: yesterdayPointsScaled,
           avgRR,
@@ -462,7 +462,7 @@ export default function LeaderboardsPage() {
   // ----- Challenges dropdown and team-wise scores -----
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengeScores, setChallengeScores] = useState<ChallengeScore[]>([]);
-  const [teamsMeta, setTeamsMeta] = useState<Array<{ id: string; name: string }>>([]);
+  const [teamsMeta, setTeamsMeta] = useState<Array<{ team_id: string; team_name: string }>>([]);
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
   const [isLoadingChallenges, setIsLoadingChallenges] = useState<boolean>(true);
   const [challengeDropdownOpen, setChallengeDropdownOpen] = useState<boolean>(false);
@@ -473,20 +473,20 @@ export default function LeaderboardsPage() {
       setIsLoadingChallenges(true);
       try {
         const [{ data: chRows }, { data: scRows }, { data: tms }] = await Promise.all([
-          getSupabase().from('special_challenges').select('id,name,start_date,end_date').order('created_at', { ascending: false }),
-          getSupabase().from('special_challenge_team_scores').select('challenge_id,team_id,score'),
-          getSupabase().from('teams').select('id,name'),
+          getSupabase().from('specialchallenges').select('challenge_id,name,start_date,end_date').order('created_date', { ascending: false }),
+          getSupabase().from('specialchallengeteamscore').select('challenge_id,team_id,score'),
+          getSupabase().from('teams').select('team_id,team_name'),
         ]);
         const chs = ((chRows || []) as any[]).map(r => ({
-          id: String(r.id), name: String(r.name), start_date: String(r.start_date || ''), end_date: String(r.end_date || ''),
+          challenge_id: String(r.challenge_id), name: String(r.name), start_date: String(r.start_date || ''), end_date: String(r.end_date || ''),
         })) as Challenge[];
         setChallenges(chs);
         setChallengeScores(((scRows || []) as any[]).map(r => ({
           challenge_id: String(r.challenge_id), team_id: String(r.team_id), score: r.score == null ? null : Number(r.score),
         })));
-        setTeamsMeta(((tms || []) as any[]).map(r => ({ id: String(r.id), name: String(r.name) })));
+        setTeamsMeta(((tms || []) as any[]).map(r => ({ team_id: String(r.team_id), team_name: String(r.team_name) })));
         const active = chs.find(c => isActiveChallenge(c));
-        setSelectedChallengeId(active ? active.id : (chs[0]?.id ?? null));
+        setSelectedChallengeId(active ? active.challenge_id : (chs[0]?.challenge_id ?? null));
       } finally {
         setIsLoadingChallenges(false);
       }
@@ -494,21 +494,21 @@ export default function LeaderboardsPage() {
   }, []);
 
   const selectedChallenge = useMemo(
-    () => challenges.find(c => c.id === selectedChallengeId) || null,
+    () => challenges.find(c => c.challenge_id === selectedChallengeId) || null,
     [challenges, selectedChallengeId]
   );
   const teamNameById = useMemo(() => {
     const m = new Map<string,string>();
-    (teamsMeta || []).forEach(t => m.set(String(t.id), String(t.name)));
+    (teamsMeta || []).forEach(t => m.set(String(t.team_id), String(t.team_name)));
     return m;
   }, [teamsMeta]);
   const scoresForSelected = useMemo(() => {
     if (!selectedChallenge) return [] as Array<{ team_id: string; team_name: string; score: number | null }>;
     const list = challengeScores
-      .filter(s => s.challenge_id === selectedChallenge.id)
+      .filter(s => s.challenge_id === selectedChallenge.challenge_id)
       .map(s => ({ team_id: s.team_id, team_name: teamNameById.get(s.team_id) || s.team_id, score: s.score }));
     teamsMeta.forEach(t => {
-      if (!list.find(r => r.team_id === t.id)) list.push({ team_id: t.id, team_name: t.name, score: null });
+      if (!list.find(r => r.team_id === t.team_id)) list.push({ team_id: t.team_id, team_name: t.team_name, score: null });
     });
     return list.sort((a,b) => {
       const as = a.score == null ? -Infinity : Number(a.score);
@@ -817,15 +817,15 @@ export default function LeaderboardsPage() {
                     <div className="py-1 max-h-72 overflow-auto">
                       {challenges.map((c) => {
                         const active = isActiveChallenge(c);
-                        const isSelected = selectedChallengeId === c.id;
+                        const isSelected = selectedChallengeId === c.challenge_id;
                         return (
                           <button
-                            key={c.id}
+                            key={c.challenge_id}
                             className={`w-full text-left px-4 py-2 text-sm flex flex-col gap-1 hover:bg-gray-100 ${
                               isSelected ? 'bg-rfl-coral/10 text-rfl-coral' : 'text-gray-700'
                             }`}
                             onClick={() => {
-                              setSelectedChallengeId(c.id);
+                              setSelectedChallengeId(c.challenge_id);
                               setChallengeDropdownOpen(false);
                             }}
                           >

@@ -62,9 +62,9 @@ export async function PATCH(req: NextRequest) {
     const supabase = getSupabase()
 
     const { data, error } = await supabase
-      .from('profiles')
+      .from('users')
       .update(updates)
-      .eq('id', userId)
+      .eq('user_id', userId)
       .select()
       .single()
 

@@ -105,7 +105,7 @@ function useDashboardData() {
 }
 
 /* ---------------------------
-   UI Subcomponents
+  UI Subcomponents
    --------------------------- */
 
 function Hero({

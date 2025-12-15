@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, UserCircle2 } from "lucide-react";
 
 type UserInfo = { id: string; firstName: string; avatarUrl?: string };
 
@@ -13,7 +13,7 @@ export function TopNav({ user, onSignOut }: { user: UserInfo; onSignOut: () => v
       <div className="max-w-[1200px] mx-auto px-6 h-full flex items-center justify-between">
         <Link href="/main-dashboard" className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-extrabold"
-               style={{ background: "#0B365F" }}>MFL</div>
+              style={{ background: "#0B365F" }}>MFL</div>
           <span className="text-sm md:text-base font-semibold" style={{ color: "#0B365F" }}>My Fitness League</span>
         </Link>
         <div className="flex items-center gap-3">
@@ -24,7 +24,10 @@ export function TopNav({ user, onSignOut }: { user: UserInfo; onSignOut: () => v
             className="btn-outline font-semibold"
           >
             <Link href="/profile" aria-label="View profile">
-              {user?.firstName || "Profile"}
+              <span className="inline-flex items-center gap-2">
+                <UserCircle2 className="w-4 h-4 text-amber-500" />
+                <span>{user?.firstName || "Profile"}</span>
+              </span>
             </Link>
           </Button>
           <Button variant="outline" size="sm" className="btn-outline" aria-label="Sign out" onClick={onSignOut}>
